@@ -1,8 +1,8 @@
 #Test generative model with parameters ALPHA and GAMMA; CUMULATIVE utility
-setwd("C:/Users/Lukas Cincikas/Documents/R/MPhil generative models")
+setwd("C:/Users/Lukas Cincikas/Documents/R/MPhil project files/MPhil generative models")
 
-alpha <-  runif(1,min=0,max=5)
-gamma <-  rgamma(1,1,scale=1)
+alpha <-  4 #runif(1,min=0,max=5)
+gamma <-  4 #rgamma(1,1,scale=1)
 
 
 Choice1Func <- function(ObjLeft=ObjLeft,alpha=alpha,gamma=gamma) #determines side/colour choice probability
@@ -24,7 +24,7 @@ LeftSideN <- NA
 Subject_Wins <- NA
 Block_track <- NA
 #Main choice loop
-for(block in 1:4)
+for(block in 1:20)
 {
   CurrentPoints[TotalIter] <- 100 #Resets points to 100 after each block
   BlockIter <- 1 #Resets the block iterations to 1
@@ -141,4 +141,4 @@ names(mock_data)[6] <- "stake.index"
 names(mock_data)[7] <- "left.won"
 names(mock_data)[8] <- "subject.won"
 
-write.csv(mock_data, file="mock_data.csv", row.names = FALSE)
+write.csv(mock_data, file="mock_data5.csv", row.names = FALSE)
