@@ -1,11 +1,11 @@
 #Test generative model with parameters ALPHA and GAMMA; CUMULATIVE utility
 setwd("C:/Users/Lukas Cincikas/Documents/R/MPhil project files/MPhil generative models")
 
-alpha <-  4 #runif(1,min=0,max=5)
+alpha <-  3.2 #runif(1,min=0,max=5)
 gamma <-  4 #rgamma(1,1,scale=1)
 
 
-Choice1Func <- function(ObjLeft=ObjLeft,alpha=alpha,gamma=gamma) #determines side/colour choice probability
+Choice1Func <- function(ObjLeft=ObjLeft,alpha=alpha) #determines side/colour choice probability
 {
   Pleft <- ObjLeft^alpha / (ObjLeft^alpha + (1-ObjLeft)^alpha)
   return(Pleft)
@@ -24,7 +24,7 @@ LeftSideN <- NA
 Subject_Wins <- NA
 Block_track <- NA
 #Main choice loop
-for(block in 1:20)
+for(block in 1:6) # !!! Block number needs to be set manually. Actual number is 4, but can be played around with for mock data
 {
   CurrentPoints[TotalIter] <- 100 #Resets points to 100 after each block
   BlockIter <- 1 #Resets the block iterations to 1
@@ -33,13 +33,13 @@ for(block in 1:20)
     ObjLeft <- runif(1,min=1,max=10) #Determines number of squares on left in trial
     ObjLeft <- floor(ObjLeft) / 10
     LeftSideN[TotalIter] <- ObjLeft #keeps track of left n for output
-    Pleft <- Choice1Func(ObjLeft,alpha,gamma) #Determines left colour choice probability
+    Pleft <- Choice1Func(ObjLeft,alpha) #Determines left colour choice probability
     Choice1[TotalIter] <- rbinom(1,size=1,prob=Pleft) #Colour choice output, 1=left, 0=right
     WinResult <- runif(1,min=0,max=1)
     if(WinResult>ObjLeft) #Generates the winning side
     {
       LeftWon[TotalIter] <- 0
-    }else if (WinResult < ObjLeft)
+    }else 
     {
       LeftWon[TotalIter] <- 1
     }
@@ -49,11 +49,11 @@ for(block in 1:20)
       ObjLeft <- 1 - ObjLeft
     }
     #setting EU values...
-    EU[1] <- Choice1Func(ObjLeft,alpha,gamma) * (CurrentPoints[TotalIter] + CurrentPoints[TotalIter]*0.05) + (1 - Choice1Func(ObjLeft,alpha,gamma))*(CurrentPoints[TotalIter] - CurrentPoints[TotalIter]*0.05)
-    EU[2] <- Choice1Func(ObjLeft,alpha,gamma) * (CurrentPoints[TotalIter] + CurrentPoints[TotalIter]*0.25) + (1 - Choice1Func(ObjLeft,alpha,gamma))*(CurrentPoints[TotalIter] - CurrentPoints[TotalIter]*0.25)
-    EU[3] <- Choice1Func(ObjLeft,alpha,gamma) * (CurrentPoints[TotalIter] + CurrentPoints[TotalIter]*0.50) + (1 - Choice1Func(ObjLeft,alpha,gamma))*(CurrentPoints[TotalIter] - CurrentPoints[TotalIter]*0.50)
-    EU[4] <- Choice1Func(ObjLeft,alpha,gamma) * (CurrentPoints[TotalIter] + CurrentPoints[TotalIter]*0.75) + (1 - Choice1Func(ObjLeft,alpha,gamma))*(CurrentPoints[TotalIter] - CurrentPoints[TotalIter]*0.75)
-    EU[5] <- Choice1Func(ObjLeft,alpha,gamma) * (CurrentPoints[TotalIter] + CurrentPoints[TotalIter]*0.95) + (1 - Choice1Func(ObjLeft,alpha,gamma))*(CurrentPoints[TotalIter] - CurrentPoints[TotalIter]*0.95)
+    EU[1] <- Choice1Func(ObjLeft,alpha) * (CurrentPoints[TotalIter] + CurrentPoints[TotalIter]*0.05) + (1 - Choice1Func(ObjLeft,alpha))*(CurrentPoints[TotalIter] - CurrentPoints[TotalIter]*0.05)
+    EU[2] <- Choice1Func(ObjLeft,alpha) * (CurrentPoints[TotalIter] + CurrentPoints[TotalIter]*0.25) + (1 - Choice1Func(ObjLeft,alpha))*(CurrentPoints[TotalIter] - CurrentPoints[TotalIter]*0.25)
+    EU[3] <- Choice1Func(ObjLeft,alpha) * (CurrentPoints[TotalIter] + CurrentPoints[TotalIter]*0.50) + (1 - Choice1Func(ObjLeft,alpha))*(CurrentPoints[TotalIter] - CurrentPoints[TotalIter]*0.50)
+    EU[4] <- Choice1Func(ObjLeft,alpha) * (CurrentPoints[TotalIter] + CurrentPoints[TotalIter]*0.75) + (1 - Choice1Func(ObjLeft,alpha))*(CurrentPoints[TotalIter] - CurrentPoints[TotalIter]*0.75)
+    EU[5] <- Choice1Func(ObjLeft,alpha) * (CurrentPoints[TotalIter] + CurrentPoints[TotalIter]*0.95) + (1 - Choice1Func(ObjLeft,alpha))*(CurrentPoints[TotalIter] - CurrentPoints[TotalIter]*0.95)
     
     Product[1] <- EU[1]*gamma
     Product[2] <- EU[2]*gamma
@@ -141,4 +141,4 @@ names(mock_data)[6] <- "stake.index"
 names(mock_data)[7] <- "left.won"
 names(mock_data)[8] <- "subject.won"
 
-write.csv(mock_data, file="mock_data5.csv", row.names = FALSE)
+write.csv(mock_data, file="mock_data20.csv", row.names = FALSE)
