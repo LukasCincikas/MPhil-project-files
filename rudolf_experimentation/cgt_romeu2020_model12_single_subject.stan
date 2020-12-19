@@ -1,10 +1,14 @@
 // cgt_romeu2020_model12_single_subject.stan
 
 functions {
-#include /include_functions.stan
+    // #include syntax is finicky:
+    // ... https://github.com/stan-dev/rstantools/issues/62
+    // ... no indent, no quotes, relative file path, leading slash
 
-// ... https://github.com/stan-dev/rstantools/issues/62
-// ... no indent, no quotes, relative file path, leading slash
+#include /commonfunc.stan
+    // ... https://egret.psychol.cam.ac.uk/rlib/commonfunc.stan
+
+#include /include_functions.stan
 }
 
 data {
@@ -64,11 +68,13 @@ model {
 
     // Following [Remeu2020], supplementary p14, parameter (means) follow
     // normal(0, 1) distributions in the "unconstrained" space:
-    target += normal_lpdf(standard_normal_alpha | 0, 1);
-    target += normal_lpdf(standard_normal_red_bias | 0, 1);
-    target += normal_lpdf(standard_normal_gamma | 0, 1);
-    target += normal_lpdf(standard_normal_rho | 0, 1);
-    target += normal_lpdf(standard_normal_beta | 0, 1);
+    // ... sampleNormal_RRR_lp(real y, real mu, real sigma)
+    // ... equivalent to: target += normal_lpdf(y | mu, sigma);
+    sampleNormal_RRR_lp(standard_normal_alpha,    0, 1);
+    sampleNormal_RRR_lp(standard_normal_red_bias, 0, 1);
+    sampleNormal_RRR_lp(standard_normal_gamma,    0, 1);
+    sampleNormal_RRR_lp(standard_normal_rho,      0, 1);
+    sampleNormal_RRR_lp(standard_normal_beta,     0, 1);
 
     // ========================================================================
     // Cognitive model

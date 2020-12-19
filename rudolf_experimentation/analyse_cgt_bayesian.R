@@ -41,20 +41,99 @@ options(mc.cores = parallel::detectCores())
 THIS_DIR <- miscfile$current_script_directory()
 SYNTHETIC_DATA_DIR <- file.path(THIS_DIR, "synthetic_data")
 FIT_CACHE_DIR <- file.path(THIS_DIR, "fitcache")
+dir.create(FIT_CACHE_DIR, showWarnings = FALSE)
 
+# We prefer to read code in and use the "model_code" parameter for Stan, rather
+# than leaving it on disk and using the "file" parameter, because Stan is quite
+# keen to create .rds files of cached compiled models, which it then uses even
+# if the Stan code changes. (You can disable this with 'save_dso = TRUE'. But
+# it's a risk.) Either way, "#include" statements work.
 STAN_SINGLE_SUBJECT_FILENAME <- file.path(
     THIS_DIR, "cgt_romeu2020_model12_single_subject.stan")
 STAN_SINGLE_SUBJECT_CODE <- readr::read_file(STAN_SINGLE_SUBJECT_FILENAME)
+STAN_GROUPS_FILENAME <- file.path(
+    THIS_DIR, "cgt_romeu2020_model12_groups.stan")
+STAN_GROUPS_CODE <- readr::read_file(STAN_GROUPS_FILENAME)
 
 
 # =============================================================================
 # Analyse Cambridge Gamble Task data
 # =============================================================================
 
-analyseSingleSubjectFromDataTable <- function(
-    d,
+# -----------------------------------------------------------------------------
+# Read in data in a format suitable for Stan
+# -----------------------------------------------------------------------------
+
+makeStanDataFromDataTable <- function(d, print_data = FALSE)
+{
+    group_names <- unique(d$group_name)
+    n_groups <- length(group_names)
+
+    subject_names <- unique(d$subject_name)
+    n_subjects <- length(subject_names)
+
+    subject_names_groups <- d[
+        ,
+        .(n_trials = .N),  # do something irrelevant; here, counting rows
+        by = .(subject_name, group_name)
+    ]
+    subject_names_groups[, subject_num := match(subject_name, subject_names)]
+    subject_names_groups[, group_num := match(group_name, group_names)]
+
+    # Safety check on the subject order:
+    stopifnot(subject_names_groups$subject_name == subject_names)
+    stopifnot(subject_names_groups$subject_num == 1:n_subjects)
+
+    n_trials <- nrow(d)
+    stopifnot(n_trials > 1)  # General requirement
+
+    standata <- list(
+        all_subject_names = subject_names,  # not used by Stan; for safety
+        all_group_names = group_names,  # not used by Stan; for safety
+
+        N_GROUPS = n_groups,
+        N_SUBJECTS = n_subjects,
+        N_TRIALS = n_trials,
+
+        # For the multi-subject version:
+        group_num_by_subject = as.array(subject_names_groups$group_num),
+        # ... In Stan, we declare group_num_by_subject as an array.
+        #     Therefore, if it has only one value, we have to convert.
+        subject_num_by_trial = match(d$subject_name, subject_names),
+
+        ascending_bets = d$ascending_bets,
+        starting_points = d$starting_points,
+        n_red = d$n_red,
+        chose_red = d$chose_red,
+        chosen_bet_index = d$chosen_bet_index
+    )
+    # browser()
+    if (print_data) {
+        print(standata)
+    }
+    return(standata)
+}
+
+
+makeStanDataFromCsv <- function(filename)
+{
+    cat(paste0("- Loading: ", filename, "\n"))
+    d <- data.table(read.csv(filename))
+    cat("... loaded.\n")
+    return(makeStanDataFromDataTable(d))
+}
+
+
+# -----------------------------------------------------------------------------
+# Run Stan
+# -----------------------------------------------------------------------------
+
+analyseViaStan <- function(
+    standata,
     model_name,
+    stan_code,
     with_bridge_sampling = FALSE,
+    with_diagnostics = FALSE,
     chains = 8,
     iter = 2000,
     init = "0",
@@ -63,16 +142,6 @@ analyseSingleSubjectFromDataTable <- function(
     stepsize = 1,
     max_treedepth = 10)
 {
-    standata <- list(
-        N_TRIALS = nrow(d),
-        ascending_bets = d$ascending_bets,
-        starting_points = d$starting_points,
-        n_red = d$n_red,
-        chose_red = d$chose_red,
-        chosen_bet_index = d$chosen_bet_index
-    )
-    # browser()
-
     cat(paste("Running model ", model_name, "...\n", sep=""))
     fit_filename <- file.path(
         FIT_CACHE_DIR, paste0("fit_", model_name, ".rds"))
@@ -80,19 +149,23 @@ analyseSingleSubjectFromDataTable <- function(
         FIT_CACHE_DIR, paste0("bridge_", model_name, ".rds"))
     code_filename <- file.path(
         FIT_CACHE_DIR, paste0("temp_code_", model_name, ".cpp"))
-    diagnostic_file <- file.path(
-        FIT_CACHE_DIR, paste0("diagnostics_", model_name, ".txt"))
+    if (with_diagnostics) {
+        diagnostic_file_stem <- file.path(
+            FIT_CACHE_DIR, paste0("diagnostics_", model_name))
+    } else {
+        diagnostic_file_stem <- NULL
+    }
 
     old_working_directory <- getwd()
     setwd(THIS_DIR)  # for Stan #include statements
 
     fit <- stanfunc$load_or_run_stan(
+        model_code = stan_code,
         data = standata,
-        model_code = STAN_SINGLE_SUBJECT_CODE,
         fit_filename = fit_filename,
         model_name = model_name,
         save_code_filename = code_filename,
-        diagnostic_file = diagnostic_file,
+        diagnostic_file = diagnostic_file_stem,
         chains = chains,
         iter = iter,
         init = init,
@@ -124,6 +197,7 @@ analyseSingleSubjectFromDataTable <- function(
     setwd(old_working_directory)
 
     return(list(
+        standata = standata,
         fit = fit,
         bridge_sample = bridge_sample,
         shiny = shiny
@@ -131,11 +205,52 @@ analyseSingleSubjectFromDataTable <- function(
 }
 
 
-analyseSingleSubjectFromCsv <- function(filename, model_name)
+analyseSingleSubject <- function(standata, model_name, ...)
 {
-    cat(paste0("- Loading: ", filename, "\n"))
-    d <- data.table(read.csv(filename))
-    return(analyseSingleSubjectFromDataTable(d, model_name))
+    stopifnot(standata$N_TRIALS > 1)
+    return(analyseViaStan(
+        standata = standata,
+        model_name = model_name,
+        stan_code = STAN_SINGLE_SUBJECT_CODE,
+        ...
+    ))
+}
+
+
+analyseGroups <- function(standata, model_name, ...)
+{
+    stopifnot(standata$N_TRIALS > 1 && standata$N_SUBJECTS > 1)
+    return(analyseViaStan(
+        standata = standata,
+        model_name = model_name,
+        stan_code = STAN_GROUPS_CODE,
+        ...
+    ))
+}
+
+
+# =============================================================================
+# Test analyses.
+# =============================================================================
+
+testAnalyses <- function()
+{
+    # Writes to global namespace with "<<-". In general, avoid this!
+
+    mock_data_1s <<- makeStanDataFromCsv(
+        file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1subject.csv"))
+    mock_results_1s <<- analyseSingleSubject(
+        standata = mock_data_1s, model_name = "cgt_mock_1_subject")
+
+    mock_data_1g <<- makeStanDataFromCsv(
+        file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1group.csv"))
+    mock_results_1g <<- analyseGroups(
+        standata = mock_data_1g, model_name = "cgt_mock_1_group")
+
+    mock_data_2g <<- makeStanDataFromCsv(
+        file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2groups.csv"))
+    mock_results_2g <<- analyseGroups(
+        standata = mock_data_2g, model_name = "cgt_mock_2_groups")
 }
 
 
@@ -143,7 +258,4 @@ analyseSingleSubjectFromCsv <- function(filename, model_name)
 # Main entry point.
 # =============================================================================
 
-results_1 <- analyseSingleSubjectFromCsv(
-    filename = file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1.csv"),
-    model_name = "s1"
-)
+testAnalyses()

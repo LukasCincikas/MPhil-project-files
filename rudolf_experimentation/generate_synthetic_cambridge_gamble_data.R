@@ -34,6 +34,7 @@ options(warn = 2)  # Warnings become errors.
 
 THIS_DIR <- miscfile$current_script_directory()
 SYNTHETIC_DATA_DIR <- file.path(THIS_DIR, "synthetic_data")
+dir.create(SYNTHETIC_DATA_DIR, showWarnings = FALSE)
 
 
 # =============================================================================
@@ -261,7 +262,7 @@ makeSingleRun <- function(alpha, red_bias, gamma, rho, beta)
                 start_points <- finishing_points[trial - 1]
             }
             if (start_points <= END_IF_POINTS_FALL_TO) {
-                break;
+                break
             }
             starting_points[trial] <- start_points
 
@@ -362,12 +363,16 @@ makeSingleRun <- function(alpha, red_bias, gamma, rho, beta)
 
 
 makeMultipleSubjectsSameParameters <- function(
-    n_subjects, subject_prefix = "subject_", ...)
+    n_subjects,
+    subject_prefix = "subject_",
+    group_name = "the_group",
+    ...)
 {
     # - subject_prefix: prefix for each subject (prepended to a number from
     #   1:n_subjects)
     # - ...: parameters to makeSingleRun()
 
+    cat(paste0("- Creating group: ", group_name, " ...\n"))
     all_subjects_data <- NULL
     for (s in 1:n_subjects) {
         subject_name <- paste0(subject_prefix, s)
@@ -375,6 +380,7 @@ makeMultipleSubjectsSameParameters <- function(
         subject_data <- makeSingleRun(...)
         cat("done.\n")
         subject_data[, subject_name := subject_name]
+        subject_data[, group_name := group_name]
         all_subjects_data <- rbind(all_subjects_data, subject_data)
     }
     return(all_subjects_data)
@@ -391,29 +397,54 @@ DEFAULT_GAMMA <- 12  # (roughly) [Romeu2020], fig. 3, controls
 DEFAULT_RHO <- 1  # flat utility function; (roughly) [Romeu2020], fig. 3, controls
 DEFAULT_BETA <- 0.15  # (roughly) [Romeu2020], fig. 3, controls
 
-makeSpecimens <- function()
+makeSpecimens <- function(n_subjects_per_group = 50)
 {
     write.csv(
-        makeSingleRun(
+        makeMultipleSubjectsSameParameters(
+            n_subjects = 1,
             alpha = DEFAULT_ALPHA,
             red_bias = DEFAULT_RED_BIAS,
             gamma = DEFAULT_GAMMA,
             rho = DEFAULT_RHO,
             beta = DEFAULT_BETA
         ),
-        file = file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1.csv"),
+        file = file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1subject.csv"),
         row.names = FALSE
     )
     write.csv(
         makeMultipleSubjectsSameParameters(
-            n_subjects = 100,
+            n_subjects = n_subjects_per_group,
             alpha = DEFAULT_ALPHA,
             red_bias = DEFAULT_RED_BIAS,
             gamma = DEFAULT_GAMMA,
             rho = DEFAULT_RHO,
             beta = DEFAULT_BETA
         ),
-        file = file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_100.csv"),
+        file = file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1group.csv"),
+        row.names = FALSE
+    )
+    write.csv(
+        rbind(
+            makeMultipleSubjectsSameParameters(
+                group_name = "group1",
+                n_subjects = n_subjects_per_group,
+                alpha = DEFAULT_ALPHA,
+                red_bias = DEFAULT_RED_BIAS,
+                gamma = DEFAULT_GAMMA,
+                rho = DEFAULT_RHO,
+                beta = DEFAULT_BETA
+            ),
+            makeMultipleSubjectsSameParameters(
+                group_name = "group2",
+                n_subjects = n_subjects_per_group,
+                alpha = 2,
+                red_bias = 0.6,
+                gamma = 10,
+                rho = 1.5,
+                beta = 0.3
+            )
+        ),
+        file = file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2groups.csv"),
         row.names = FALSE
     )
 }
