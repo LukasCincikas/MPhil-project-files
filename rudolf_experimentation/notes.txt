@@ -1,0 +1,75 @@
+
+
+-------- Forwarded Message --------
+Subject: 	Re: Stan warnings
+Date: 	Sun, 20 Dec 2020 19:44:07 +0000
+From: 	Rudolf Cardinal <rnc1001@cam.ac.uk>
+To: 	L. Cincikas <lc704@cam.ac.uk>
+
+
+Dear Lukas,
+
+I think I've got this working, in that I have:
+
+    started with fresh code -- everything is in the rudolf_experimentation directory;
+    implemented the Cambridge Gamble Task (according to the description in Romeu 2020), and made code to create one or multiple subjects -- generate_synthetic_cambridge_gamble_data.R;
+        ... which will store in synthetic_data/
+    written code to analyse it (or any other such data) via Stan, using the winning model (model 12) from Romeu 2020:
+        analyse_cgt_bayesian.R
+            ... which will store in fitcache/
+            ... NB this script also creates the Stan data in a standard format; see makeStanDataFromDataTable()
+        and two Stan files:
+            cgt_romeu2020_model12_independent_subjects.stan -- analyses an arbitrary number of subjects independently
+            cgt_romeu2020_model12_groups.stan -- analyses an arbitrary number of subjects in an arbitrary number of groups (for a between-subjects design), using the Romeu priors/transformations, and compares all groups pairwise
+        and those Stan files #include
+            commonfunc.stan (a copy of https://egret.psychol.cam.ac.uk/rlib/commonfunc.stan)
+            include_functions.stan
+            include_data.stan
+            include_transformed_data.stan
+            include_model_declarations.stan
+            include_model_core_romeu2020_m12.stan
+
+You'd need to extend the models if you want a within-subjects manipulation in addition to a between-subjects comparison (but this should be easy; the models share core code so it would just be about the parameter structure -- compare the two existing models, above, to see what I mean).
+
+It seems to work fine in that:
+
+    the synthetic data replicates the basic behavioural features of Romeu 2020 fig. 2
+        see e.g. mock_fig_1g, mock_fig_2g -- the latter is attached
+    the Bayesian analysis converges, with R-hat <= 1.01 for all the tests; see e.g.
+        mock_results_1s$fit  # one subject
+        mock_results_2s$fit  # two subjects, analysed independently
+        mock_results_1g$fit  # one group of 50 subjects
+        mock_results_2g$fit  # two groups, each of 50 subjects
+    appropriate values come back out again
+        e.g. group 1 was synthesized with alpha = 3, c (red_bias) = 0.5, gamma = 12, rho = 1, beta = 0.15 -- the human values
+        group 2 was synthesized with made-up other values: alpha = 2, red_bias = 0.6, gamma = 10, rho = 1.5, beta = 0.3
+        ... and see output.txt attached, e.g. summary_of_mock_results_2g
+        ... though the HDIs are wide for rho (the parameter governing loss sensitivity) -- see next point.
+
+One thing may well be wrong, but I don't fully understand the original methods:
+
+    The poor convergence for rho isn't surprising, because rho governs sensitivity to loss. And as I understand it:
+    The winning model was model 12 (e.g. Supplementary Materials p8).
+    In model 12, utility is log(1 + x) if x >= 0, and log(1 + rho * x) if x < 0 (Supplementary Table 1).
+    But I think that because Model 12 is a "cumulative model" variant, utility is always positive -- equation 5, and then the explicit text below it ("since we can never have negative capital... the utility function for the CM only accepts positive real numbers").
+    So I'm confused: as a "cumulative model", x can't be negative; but rho only makes sense if it can be.
+        [Rho is not being estimated well by the Bayesian model because it has no impact on behaviour, therefore.]
+    Do you understand this? If not, it may be worth clarifying with Romeu et al. directly.
+    I wonder if they defined utility differently for this model but haven't explained this properly (or I missed it).
+
+
+However, I can't push the code:
+
+> rudolf@wombat:~/Documents/code/lukas_cincikas_mphil_gamble_task/rudolf_experimentation$ git push origin
+> Username for 'https://github.com': RudolfCardinal
+> Password for 'https://RudolfCardinal@github.com':
+> remote: Permission to LukasCincikas/MPhil-project-files.git denied to RudolfCardinal.
+> fatal: unable to access 'https://github.com/LukasCincikas/MPhil-project-files/': The requested URL returned error: 403
+
+Is that a permissions problem?
+
+all the best,
+
+Rudolf.
+
+

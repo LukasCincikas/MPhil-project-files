@@ -162,7 +162,7 @@ getPenalizedExpectedUtility <- function(
     bet_position,
     beta,
     n_bet_options = N_BET_OPTIONS,
-    debug = FALSE)
+    debug = TRUE)
 {
     # [Romeu2020], eq. 4-6; Cumulative Model (CM), which was best.
     #

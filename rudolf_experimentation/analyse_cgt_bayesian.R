@@ -16,6 +16,7 @@
 library(data.table)
 library(patchwork)
 library(tidyverse)
+source("https://egret.psychol.cam.ac.uk/rlib/debugfunc.R")
 source("https://egret.psychol.cam.ac.uk/rlib/listassign.R")
 source("https://egret.psychol.cam.ac.uk/rlib/miscfile.R")
 source("https://egret.psychol.cam.ac.uk/rlib/miscstat.R")
@@ -43,6 +44,7 @@ FIT_CACHE_DIR <- file.path(THIS_DIR, "fitcache")
 dir.create(FIT_CACHE_DIR, showWarnings = FALSE)
 OUTPUT_DIR <- file.path(THIS_DIR, "output")
 dir.create(OUTPUT_DIR, showWarnings = FALSE)
+OUTPUT_FILE <- file.path(OUTPUT_DIR, "output.txt")
 
 # We prefer to read code in and use the "model_code" parameter for Stan, rather
 # than leaving it on disk and using the "file" parameter, because Stan is quite
@@ -109,7 +111,8 @@ mkRomeuFig2 <- function(d)
         geom_point() +
         facet_grid(. ~ ascending) +
         xlab("Red:blue colour ratio") +
-        ylab("Colour choice (0 = blue, 1 = red)")
+        ylab("Colour choice (0 = blue, 1 = red)") +
+        ylim(0, 1)
     )
     fig_b <- (
         ggplot(
@@ -131,7 +134,8 @@ mkRomeuFig2 <- function(d)
         geom_point() +
         facet_grid(. ~ ascending) +
         xlab("Red:blue colour ratio") +
-        ylab("Bet size (proportion of points)")
+        ylab("Bet size (proportion of points)") +
+        ylim(0, 1)
     )
     f <- (fig_a / fig_b + plot_layout(guides = "collect"))
     return(f)
@@ -335,6 +339,13 @@ saveFig <- function(fig, filename_stem,
 }
 
 
+saveOutput <- function(..., append = TRUE)
+{
+    debugfunc$debug_quantity(..., filename = OUTPUT_FILE, append = append,
+                             print_only = TRUE)
+}
+
+
 analyseMockData <- function(bayesian = TRUE, figures = TRUE)
 {
     # Writes to global namespace with "<<-". In general, avoid this!
@@ -346,6 +357,7 @@ analyseMockData <- function(bayesian = TRUE, figures = TRUE)
     if (bayesian) {
         mock_results_1s <<- analyseIndependentSubjects(
             standata = mock_standata_1s, model_name = "cgt_mock_1_subject")
+        saveOutput(mock_results_1s$fit, append = FALSE)
     }
 
     # Two subjects
@@ -355,6 +367,7 @@ analyseMockData <- function(bayesian = TRUE, figures = TRUE)
     if (bayesian) {
         mock_results_2s <<- analyseIndependentSubjects(
             standata = mock_standata_2s, model_name = "cgt_mock_2_subjects")
+        saveOutput(mock_results_2s$fit)
     }
 
     # One group
@@ -364,6 +377,7 @@ analyseMockData <- function(bayesian = TRUE, figures = TRUE)
     if (bayesian) {
         mock_results_1g <<- analyseGroups(
             standata = mock_standata_1g, model_name = "cgt_mock_1_group")
+        saveOutput(mock_results_1g$fit)
     }
     if (figures) {
         mock_fig_1g <<- mkRomeuFig2(mock_data_1g)
@@ -377,13 +391,14 @@ analyseMockData <- function(bayesian = TRUE, figures = TRUE)
     if (bayesian) {
         mock_results_2g <<- analyseGroups(
             standata = mock_standata_2g, model_name = "cgt_mock_2_groups")
+        saveOutput(mock_results_2g$fit)
         # Specimen group comparison
-        cat("- Summary of mock_results_2g:\n")
-        print(stanfunc$annotated_parameters(
+        summary_of_mock_results_2g <<- stanfunc$annotated_parameters(
             fit = mock_results_2g$fit,
             probs = c(0.025, 0.975),
-            par_regex = "^group.*\\[1,2\\]$"
-        ))
+            par_regex = "^group.*\\[(?:1|1,2|2)\\]$"
+        )
+        saveOutput(summary_of_mock_results_2g)
     }
     if (figures) {
         mock_fig_2g <<- mkRomeuFig2(mock_data_2g)
