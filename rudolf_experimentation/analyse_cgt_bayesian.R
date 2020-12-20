@@ -234,7 +234,7 @@ analyseGroups <- function(standata, model_name, ...)
 # Test analyses.
 # =============================================================================
 
-testAnalyses <- function()
+analyseMockData <- function()
 {
     # Writes to global namespace with "<<-". In general, avoid this!
 
@@ -257,6 +257,13 @@ testAnalyses <- function()
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2groups.csv"))
     mock_results_2g <<- analyseGroups(
         standata = mock_data_2g, model_name = "cgt_mock_2_groups")
+
+    # Specimen group comparison
+    print(stanfunc$annotated_parameters(
+        fit = mock_results_2g$fit,
+        probs = c(0.025, 0.975),
+        par_regex = "^group.*\\[1,2\\]$"
+    ))
 }
 
 
@@ -264,4 +271,4 @@ testAnalyses <- function()
 # Main entry point.
 # =============================================================================
 
-testAnalyses()
+analyseMockData()
