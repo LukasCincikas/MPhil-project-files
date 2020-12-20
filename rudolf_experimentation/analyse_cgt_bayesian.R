@@ -27,7 +27,7 @@ source("https://egret.psychol.cam.ac.uk/rlib/stanfunc.R")
 # R settings
 # =============================================================================
 
-options(warn = 2)  # Warnings become errors.
+# options(warn = 2)  # Warnings become errors.
 
 # As advised by Stan:
 rstan::rstan_options(auto_write = TRUE)

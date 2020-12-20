@@ -2,7 +2,7 @@
     // Functions
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-    // See generate_synthetic_cambridge_gamble_data.R
+    // For detailed thinking, see generate_synthetic_cambridge_gamble_data.R
 
     real pChooseRed(real r, real alpha, real c)
     {
@@ -31,7 +31,9 @@
         real v;
         for (i in 1:n) {
             v = x[i];
-            utility[i] = v >= 0 ? log(1 + v) : log(1 + rho * v);
+            utility[i] = v >= 0
+                ? log(1 + v)
+                : log(1 + rho * v);
         }
         return utility;
     }
