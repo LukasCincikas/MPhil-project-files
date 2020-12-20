@@ -1,5 +1,18 @@
     // ------------------------------------------------------------------------
-    // Common model variables
+    // Subject/group handling
+    // ------------------------------------------------------------------------
+
+    int s = -1;  // current subject number, from 1:N_SUBJECTS
+
+    // Working copies of the per-subject parameters:
+    real alpha;
+    real red_bias;
+    real gamma;
+    real rho;
+    real beta;
+
+    // ------------------------------------------------------------------------
+    // Core model variables
     // ------------------------------------------------------------------------
 
     // Working variables for the task.

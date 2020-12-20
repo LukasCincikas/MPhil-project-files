@@ -154,19 +154,6 @@ model {
 
 #include /include_model_declarations.stan
 
-    // ------------------------------------------------------------------------
-    // Extras for subject/group handling
-    // ------------------------------------------------------------------------
-
-    int s = -1;  // current subject number, from 1:N_SUBJECTS
-
-    // Working copies of the per-subject parameters.
-    real alpha;
-    real red_bias;
-    real gamma;
-    real rho;
-    real beta;
-
     // ========================================================================
     // Priors
     // ========================================================================
@@ -200,22 +187,7 @@ model {
     // Cognitive model
     // ========================================================================
 
-    for (t in 1:N_TRIALS) {
-
-        if (subject_num_by_trial[t] != s) {
-            // Reset for new subject
-            s = subject_num_by_trial[t];
-            // This subject's parameters:
-            alpha = subject_alpha[s];
-            red_bias = subject_red_bias[s];
-            gamma = subject_gamma[s];
-            rho = subject_rho[s];
-            beta = subject_beta[s];
-        }
-
 #include /include_model_core_romeu2020_m12.stan
-
-    }
 
 }
 
@@ -237,8 +209,8 @@ generated quantities {
     // ------------------------------------------------------------------------
     // Group differences in means, pairwise, in "task parameter space":
     // ------------------------------------------------------------------------
-
     // All are indexed such that diff[g1, g2] == value[g1] - value[g2].
+
     matrix[N_GROUPS, N_GROUPS] group_mean_diff_alpha;
     matrix[N_GROUPS, N_GROUPS] group_mean_diff_red_bias;
     matrix[N_GROUPS, N_GROUPS] group_mean_diff_gamma;
@@ -248,6 +220,7 @@ generated quantities {
     // ------------------------------------------------------------------------
     // Group differences in intersubject SD, pairwise, in N(0, 0.2) space
     // ------------------------------------------------------------------------
+    // All are indexed such that diff[g1, g2] == value[g1] - value[g2].
 
     matrix[N_GROUPS, N_GROUPS] group_sd_diff_nspace1_alpha;
     matrix[N_GROUPS, N_GROUPS] group_sd_diff_nspace1_red_bias;
@@ -265,38 +238,57 @@ generated quantities {
     group_mean_gamma = exp(nspace1_group_mean_gamma);
     group_mean_rho = exp(nspace1_group_mean_rho);
     group_mean_beta = exp(nspace1_group_mean_beta);
+    
+    {
+        // In our "generated quantities" block, because we don't know how many
+        // groups we have (the code is generic), we use a matrix of group
+        // differences. Therefore, we will have to provide some value for
+        // "zero" for the diagonal. But Stan will then give a warning that the
+        // largest value of Rhat is NaN, even if everything else is converging
+        // well. A solution is to return a tiny random number (therefore
+        // non-constant across runs). The user just needs to ignore these.
+        // See https://discourse.mc-stan.org/t/largest-rhat-is-na-when-one-parameter-is-fixed-to-a-constant/15488/6
+        // ... but fixed so that the lower/upper bounds are sensible.
+        real tiny_random_number = uniform_rng(-1e-16, 1e-16);
 
-    // Group differences
-    for (g1 in 1:N_GROUPS) {
-        for (g2 in 1:N_GROUPS) {
-            // We'll do this in a pretty unthinking way.
-            // More efficiency would be possible.
-            // Specifically, every value is calculated twice (g1 == 3, g2 == 4
-            // then g1 == 4, g2 == 3), and "g1 == g2" is calculated twice and
-            // written twice. But it makes for shorter and more maintainable
-            // code.
-            group_mean_diff_alpha[g1, g2] =
-                group_mean_alpha[g1] - group_mean_alpha[g2];
-            group_mean_diff_red_bias[g1, g2] =
-                group_mean_red_bias[g1] - group_mean_red_bias[g2];
-            group_mean_diff_gamma[g1, g2] =
-                group_mean_gamma[g1] - group_mean_gamma[g2];
-            group_mean_diff_rho[g1, g2] =
-                group_mean_rho[g1] - group_mean_rho[g2];
-            group_mean_diff_beta[g1, g2] =
-                group_mean_beta[g1] - group_mean_beta[g2];
-
-            group_sd_diff_nspace1_alpha[g1, g2] =
-                nspace1_group_sd_alpha[g1] - nspace1_group_sd_alpha[g2];
-            group_sd_diff_nspace1_red_bias[g1, g2] =
-                nspace1_group_sd_red_bias[g1] - nspace1_group_sd_red_bias[g2];
-            group_sd_diff_nspace1_gamma[g1, g2] =
-                nspace1_group_sd_gamma[g1] - nspace1_group_sd_gamma[g2];
-            group_sd_diff_nspace1_rho[g1, g2] =
-                nspace1_group_sd_rho[g1] - nspace1_group_sd_rho[g2];
-            group_sd_diff_nspace1_beta[g1, g2] =
-                nspace1_group_sd_beta[g1] - nspace1_group_sd_beta[g2];
+        // Group differences
+        for (g1 in 1:N_GROUPS) {
+            for (g2 in 1:N_GROUPS) {
+    
+                if (g1 == g2) {
+                    // See explanation in tiny_random_number.
+                    group_mean_diff_alpha[g1, g2]    = tiny_random_number;
+                    group_mean_diff_red_bias[g1, g2] = tiny_random_number;
+                    group_mean_diff_gamma[g1, g2]    = tiny_random_number;
+                    group_mean_diff_rho[g1, g2]      = tiny_random_number;
+                    group_mean_diff_beta[g1, g2]     = tiny_random_number;
+    
+                    group_sd_diff_nspace1_alpha[g1, g2]    = tiny_random_number;
+                    group_sd_diff_nspace1_red_bias[g1, g2] = tiny_random_number;
+                    group_sd_diff_nspace1_gamma[g1, g2]    = tiny_random_number;
+                    group_sd_diff_nspace1_rho[g1, g2]      = tiny_random_number;
+                    group_sd_diff_nspace1_beta[g1, g2]     = tiny_random_number;
+    
+                } else {
+                    // We'll do this in a pretty unthinking way; more efficiency
+                    // would be possible. Specifically, every value is calculated
+                    // twice (e.g. g1 == 3, g2 == 4; then g1 == 4, g2 == 3). But
+                    // it makes for shorter and more maintainable code. Also, line
+                    // length style is ignored to improve our ability to spot
+                    // typos.
+                    group_mean_diff_alpha[g1, g2]    = group_mean_alpha[g1]    - group_mean_alpha[g2];
+                    group_mean_diff_red_bias[g1, g2] = group_mean_red_bias[g1] - group_mean_red_bias[g2];
+                    group_mean_diff_gamma[g1, g2]    = group_mean_gamma[g1]    - group_mean_gamma[g2];
+                    group_mean_diff_rho[g1, g2]      = group_mean_rho[g1]      - group_mean_rho[g2];
+                    group_mean_diff_beta[g1, g2]     = group_mean_beta[g1]     - group_mean_beta[g2];
+    
+                    group_sd_diff_nspace1_alpha[g1, g2]    = nspace1_group_sd_alpha[g1]    - nspace1_group_sd_alpha[g2];
+                    group_sd_diff_nspace1_red_bias[g1, g2] = nspace1_group_sd_red_bias[g1] - nspace1_group_sd_red_bias[g2];
+                    group_sd_diff_nspace1_gamma[g1, g2]    = nspace1_group_sd_gamma[g1]    - nspace1_group_sd_gamma[g2];
+                    group_sd_diff_nspace1_rho[g1, g2]      = nspace1_group_sd_rho[g1]      - nspace1_group_sd_rho[g2];
+                    group_sd_diff_nspace1_beta[g1, g2]     = nspace1_group_sd_beta[g1]     - nspace1_group_sd_beta[g2];
+                }
+            }
         }
     }
-
 }

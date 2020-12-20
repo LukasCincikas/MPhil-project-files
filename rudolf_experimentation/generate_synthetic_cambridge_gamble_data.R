@@ -364,8 +364,8 @@ makeSingleRun <- function(alpha, red_bias, gamma, rho, beta)
 
 makeMultipleSubjectsSameParameters <- function(
     n_subjects,
-    subject_prefix = "subject_",
     group_name = "the_group",
+    subject_prefix = paste0(group_name, "_subject"),
     ...)
 {
     # - subject_prefix: prefix for each subject (prepended to a number from
@@ -397,8 +397,19 @@ DEFAULT_GAMMA <- 12  # (roughly) [Romeu2020], fig. 3, controls
 DEFAULT_RHO <- 1  # flat utility function; (roughly) [Romeu2020], fig. 3, controls
 DEFAULT_BETA <- 0.15  # (roughly) [Romeu2020], fig. 3, controls
 
-makeSpecimens <- function(n_subjects_per_group = 50)
+
+makeSpecimens <- function(n_subjects_per_group = 50, seed = NULL)
 {
+    # These are just picked at random:
+    secondary_alpha <- 2
+    secondary_red_bias <- 0.6
+    secondary_gamma <- 10
+    secondary_rho <- 1.5
+    secondary_beta <- 0.3
+
+    if (!is.null(seed)) {
+        set.seed(seed)
+    }
     write.csv(
         makeMultipleSubjectsSameParameters(
             n_subjects = 1,
@@ -409,6 +420,30 @@ makeSpecimens <- function(n_subjects_per_group = 50)
             beta = DEFAULT_BETA
         ),
         file = file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1subject.csv"),
+        row.names = FALSE
+    )
+    write.csv(
+        rbind(
+            makeMultipleSubjectsSameParameters(
+                n_subjects = 1,
+                subject_prefix = "subject_1_",
+                alpha = DEFAULT_ALPHA,
+                red_bias = DEFAULT_RED_BIAS,
+                gamma = DEFAULT_GAMMA,
+                rho = DEFAULT_RHO,
+                beta = DEFAULT_BETA
+            ),
+            makeMultipleSubjectsSameParameters(
+                n_subjects = 1,
+                subject_prefix = "subject_2_",
+                alpha = secondary_alpha,
+                red_bias = secondary_red_bias,
+                gamma = secondary_gamma,
+                rho = secondary_rho,
+                beta = secondary_beta
+            )
+        ),
+        file = file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2subjects.csv"),
         row.names = FALSE
     )
     write.csv(
@@ -437,11 +472,11 @@ makeSpecimens <- function(n_subjects_per_group = 50)
             makeMultipleSubjectsSameParameters(
                 group_name = "group2",
                 n_subjects = n_subjects_per_group,
-                alpha = 2,
-                red_bias = 0.6,
-                gamma = 10,
-                rho = 1.5,
-                beta = 0.3
+                alpha = secondary_alpha,
+                red_bias = secondary_red_bias,
+                gamma = secondary_gamma,
+                rho = secondary_rho,
+                beta = secondary_beta
             )
         ),
         file = file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2groups.csv"),
@@ -454,4 +489,4 @@ makeSpecimens <- function(n_subjects_per_group = 50)
 # Main entry point.
 # =============================================================================
 
-makeSpecimens()
+makeSpecimens(seed = 1234)

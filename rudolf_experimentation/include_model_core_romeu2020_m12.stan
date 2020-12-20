@@ -1,3 +1,18 @@
+    // Cognitive model
+
+    for (t in 1:N_TRIALS) {
+
+        if (subject_num_by_trial[t] != s) {
+            // Reset for new subject
+            s = subject_num_by_trial[t];
+            // This subject's parameters:
+            alpha = subject_alpha[s];
+            red_bias = subject_red_bias[s];
+            gamma = subject_gamma[s];
+            rho = subject_rho[s];
+            beta = subject_beta[s];
+        }
+
         // --------------------------------------------------------------------
         // (a) Predict which colour was chosen.
         // --------------------------------------------------------------------
@@ -48,3 +63,5 @@
         //       - y is an integer in {1, ..., K}
         //       - theta is a K-simplex of the probabilities of the K outcomes
         target += categorical_lpmf(chosen_bet_index[t] | p_each_bet);
+
+    }

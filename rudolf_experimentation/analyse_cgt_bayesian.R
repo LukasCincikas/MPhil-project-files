@@ -27,7 +27,7 @@ source("https://egret.psychol.cam.ac.uk/rlib/stanfunc.R")
 # R settings
 # =============================================================================
 
-# options(warn = 2)  # Warnings become errors.
+options(warn = 2)  # Warnings become errors.
 
 # As advised by Stan:
 rstan::rstan_options(auto_write = TRUE)
@@ -48,12 +48,10 @@ dir.create(FIT_CACHE_DIR, showWarnings = FALSE)
 # keen to create .rds files of cached compiled models, which it then uses even
 # if the Stan code changes. (You can disable this with 'save_dso = TRUE'. But
 # it's a risk.) Either way, "#include" statements work.
-STAN_SINGLE_SUBJECT_FILENAME <- file.path(
-    THIS_DIR, "cgt_romeu2020_model12_single_subject.stan")
-STAN_SINGLE_SUBJECT_CODE <- readr::read_file(STAN_SINGLE_SUBJECT_FILENAME)
-STAN_GROUPS_FILENAME <- file.path(
-    THIS_DIR, "cgt_romeu2020_model12_groups.stan")
-STAN_GROUPS_CODE <- readr::read_file(STAN_GROUPS_FILENAME)
+STAN_INDEPENDENT_SUBJECTS_CODE <- readr::read_file(file.path(
+    THIS_DIR, "cgt_romeu2020_model12_independent_subjects.stan"))
+STAN_GROUPS_CODE <- readr::read_file(file.path(
+    THIS_DIR, "cgt_romeu2020_model12_groups.stan"))
 
 
 # =============================================================================
@@ -79,6 +77,9 @@ makeStanDataFromDataTable <- function(d, print_data = FALSE)
     ]
     subject_names_groups[, subject_num := match(subject_name, subject_names)]
     subject_names_groups[, group_num := match(group_name, group_names)]
+    if (nrow(subject_names_groups) != n_subjects) {
+        stop("Error: at least one subject appears in >1 group!")
+    }
 
     # Safety check on the subject order:
     stopifnot(subject_names_groups$subject_name == subject_names)
@@ -138,7 +139,7 @@ analyseViaStan <- function(
     iter = 2000,
     init = "0",
     seed = 1234,
-    adapt_delta = 0.8,
+    adapt_delta = 0.9,  # Stan default is 0.8
     stepsize = 1,
     max_treedepth = 10)
 {
@@ -205,13 +206,13 @@ analyseViaStan <- function(
 }
 
 
-analyseSingleSubject <- function(standata, model_name, ...)
+analyseIndependentSubjects <- function(standata, model_name, ...)
 {
     stopifnot(standata$N_TRIALS > 1)
     return(analyseViaStan(
         standata = standata,
         model_name = model_name,
-        stan_code = STAN_SINGLE_SUBJECT_CODE,
+        stan_code = STAN_INDEPENDENT_SUBJECTS_CODE,
         ...
     ))
 }
@@ -239,8 +240,13 @@ testAnalyses <- function()
 
     mock_data_1s <<- makeStanDataFromCsv(
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1subject.csv"))
-    mock_results_1s <<- analyseSingleSubject(
+    mock_results_1s <<- analyseIndependentSubjects(
         standata = mock_data_1s, model_name = "cgt_mock_1_subject")
+
+    mock_data_2s <<- makeStanDataFromCsv(
+        file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2subjects.csv"))
+    mock_results_2s <<- analyseIndependentSubjects(
+        standata = mock_data_2s, model_name = "cgt_mock_2_subjects")
 
     mock_data_1g <<- makeStanDataFromCsv(
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1group.csv"))
