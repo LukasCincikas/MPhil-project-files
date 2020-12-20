@@ -9,13 +9,12 @@
 #   [Romeu2020] Romeu et al (2020, PMID 31735532).
 
 
-
-
 # =============================================================================
 # Libraries
 # =============================================================================
 
 library(data.table)
+library(patchwork)
 library(tidyverse)
 source("https://egret.psychol.cam.ac.uk/rlib/listassign.R")
 source("https://egret.psychol.cam.ac.uk/rlib/miscfile.R")
@@ -42,6 +41,8 @@ THIS_DIR <- miscfile$current_script_directory()
 SYNTHETIC_DATA_DIR <- file.path(THIS_DIR, "synthetic_data")
 FIT_CACHE_DIR <- file.path(THIS_DIR, "fitcache")
 dir.create(FIT_CACHE_DIR, showWarnings = FALSE)
+OUTPUT_DIR <- file.path(THIS_DIR, "output")
+dir.create(OUTPUT_DIR, showWarnings = FALSE)
 
 # We prefer to read code in and use the "model_code" parameter for Stan, rather
 # than leaving it on disk and using the "file" parameter, because Stan is quite
@@ -55,7 +56,90 @@ STAN_GROUPS_CODE <- readr::read_file(file.path(
 
 
 # =============================================================================
-# Analyse Cambridge Gamble Task data
+# Analyse Cambridge Gamble Task data as per [Romeu2020] figure 2.
+# =============================================================================
+
+mkRomeuFig2 <- function(d)
+{
+    n_locations <- 10
+    working <- copy(d)
+    working[, ascending := ifelse(ascending_bets, "ascending", "descending")]
+    working[, red_to_blue_ratio := paste0(n_red, ":", n_locations - n_red)]
+    by_subject <- (
+        working %>%
+        group_by(group_name, subject_name, ascending, red_to_blue_ratio) %>%
+        summarize(
+            average_colour_choice = mean(chose_red),
+            average_bet_ratio = mean(proportion_staked),
+            .groups = "drop"
+            # https://stackoverflow.com/questions/62140483/how-to-interpret-dplyr-message-summarise-regrouping-output-by-x-override
+        ) %>%
+        as.data.table()
+    )
+    by_group <- (
+        by_subject %>%
+        group_by(group_name, ascending, red_to_blue_ratio) %>%
+        summarize(
+            mean_colour_choice = mean(average_colour_choice),
+            sem_colour_choice = miscstat$sem(average_colour_choice),
+            mean_bet_ratio = mean(average_bet_ratio),
+            sem_bet_ratio = miscstat$sem(average_bet_ratio),
+            .groups = "drop"
+        ) %>%
+        as.data.table()
+    )
+    theme <- theme_bw()
+    fig_a <- (
+        ggplot(
+            by_group,
+            aes(
+                x = red_to_blue_ratio,
+                y = mean_colour_choice,
+                colour = group_name,
+                group = group_name
+            )
+        ) +
+        theme +
+        scale_colour_discrete(name = "Group") +
+        geom_line() +
+        geom_errorbar(aes(
+            ymin = mean_colour_choice - sem_colour_choice,
+            ymax = mean_colour_choice + sem_colour_choice
+        )) +
+        geom_point() +
+        facet_grid(. ~ ascending) +
+        xlab("Red:blue colour ratio") +
+        ylab("Colour choice (0 = blue, 1 = red)")
+    )
+    fig_b <- (
+        ggplot(
+            by_group,
+            aes(
+                x = red_to_blue_ratio,
+                y = mean_bet_ratio,
+                colour = group_name,
+                group = group_name
+            )
+        ) +
+        theme +
+        scale_colour_discrete(name = "Group") +
+        geom_line() +
+        geom_errorbar(aes(
+            ymin = mean_bet_ratio - sem_bet_ratio,
+            ymax = mean_bet_ratio + sem_bet_ratio
+        )) +
+        geom_point() +
+        facet_grid(. ~ ascending) +
+        xlab("Red:blue colour ratio") +
+        ylab("Bet size (proportion of points)")
+    )
+    f <- (fig_a / fig_b + plot_layout(guides = "collect"))
+    return(f)
+}
+
+
+# =============================================================================
+# Analyse Cambridge Gamble Task data via Bayesian modelling
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -116,12 +200,12 @@ makeStanDataFromDataTable <- function(d, print_data = FALSE)
 }
 
 
-makeStanDataFromCsv <- function(filename)
+loadDataFromCsv <- function(filename)
 {
     cat(paste0("- Loading: ", filename, "\n"))
     d <- data.table(read.csv(filename))
     cat("... loaded.\n")
-    return(makeStanDataFromDataTable(d))
+    return(d)
 }
 
 
@@ -234,31 +318,57 @@ analyseGroups <- function(standata, model_name, ...)
 # Test analyses.
 # =============================================================================
 
+saveFig <- function(fig, filename_stem,
+                    width_mm = 200, height_mm = 200, dpi = 600)
+{
+    fullpath <- file.path(OUTPUT_DIR, filename_stem)
+    cat(paste0("- Saving figure: ", fullpath, " ..."))
+    ggsave(
+        filename = filename,
+        plot = fig,
+        width = width_mm,
+        height = height_mm,
+        units = "mm",
+        dpi = dpi
+    )
+    cat(" done.\n")
+}
+
+
 analyseMockData <- function()
 {
     # Writes to global namespace with "<<-". In general, avoid this!
 
-    mock_data_1s <<- makeStanDataFromCsv(
+    mock_data_1s <<- loadDataFromCsv(
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1subject.csv"))
+    mock_standata_1s <<- makeStanDataFromDataTable(mock_data_1s)
     mock_results_1s <<- analyseIndependentSubjects(
-        standata = mock_data_1s, model_name = "cgt_mock_1_subject")
+        standata = mock_standata_1s, model_name = "cgt_mock_1_subject")
 
-    mock_data_2s <<- makeStanDataFromCsv(
+    mock_data_2s <<- loadDataFromCsv(
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2subjects.csv"))
+    mock_standata_2s <<- makeStanDataFromDataTable(mock_data_2s)
     mock_results_2s <<- analyseIndependentSubjects(
-        standata = mock_data_2s, model_name = "cgt_mock_2_subjects")
+        standata = mock_standata_2s, model_name = "cgt_mock_2_subjects")
 
-    mock_data_1g <<- makeStanDataFromCsv(
+    mock_data_1g <<- loadDataFromCsv(
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1group.csv"))
+    mock_standata_1g <<- makeStanDataFromDataTable(mock_data_1g)
     mock_results_1g <<- analyseGroups(
-        standata = mock_data_1g, model_name = "cgt_mock_1_group")
+        standata = mock_standata_1g, model_name = "cgt_mock_1_group")
+    mock_fig_1g <<- mkRomeuFig2(mock_data_1g)
+    saveFig(mock_fig_1g, "mock_fig_1g.png")
 
-    mock_data_2g <<- makeStanDataFromCsv(
+    mock_data_2g <<- loadDataFromCsv(
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2groups.csv"))
+    mock_standata_2g <<- makeStanDataFromDataTable(mock_data_2g)
     mock_results_2g <<- analyseGroups(
-        standata = mock_data_2g, model_name = "cgt_mock_2_groups")
+        standata = mock_standata_2g, model_name = "cgt_mock_2_groups")
+    mock_fig_2g <<- mkRomeuFig2(mock_data_2g)
+    saveFig(mock_fig_2g, "mock_fig_2g.png")
 
     # Specimen group comparison
+    cat("- Summary of mock_results_2g:\n")
     print(stanfunc$annotated_parameters(
         fit = mock_results_2g$fit,
         probs = c(0.025, 0.975),

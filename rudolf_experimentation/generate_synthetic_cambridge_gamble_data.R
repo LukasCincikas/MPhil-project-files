@@ -161,7 +161,8 @@ getPenalizedExpectedUtility <- function(
     rho,
     bet_position,
     beta,
-    n_bet_options = N_BET_OPTIONS)
+    n_bet_options = N_BET_OPTIONS,
+    debug = FALSE)
 {
     # [Romeu2020], eq. 4-6; Cumulative Model (CM), which was best.
     #
@@ -197,8 +198,22 @@ getPenalizedExpectedUtility <- function(
     # ... range [0, 1]
     stopifnot(cost_of_bet_position >= 0 & cost_of_bet_position <= 1)
     penalty_for_waiting <- beta * cost_of_bet_position
+
+    penalized_expected_utility <- expected_utility - penalty_for_waiting
+
+    if (debug) {
+        cat(
+            "- getPenalizedExpectedUtility():\n",
+            "  scaled_capital = ", scaled_capital, "\n",
+            "  expected_utility = ", expected_utility, "\n",
+            "  bet_position = ", bet_position, "\n",
+            "  cost_of_bet_position = ", cost_of_bet_position, "\n",
+            "  penalty_for_waiting = ", penalty_for_waiting, "\n",
+            "  penalized_expected_utility = ", penalized_expected_utility, "\n"
+        )
+    }
     
-    return(expected_utility - penalty_for_waiting)
+    return(penalized_expected_utility)
 }
 
 
@@ -250,7 +265,8 @@ makeSingleRun <- function(alpha, red_bias, gamma, rho, beta)
     # Main choice loop
     for (block in 1 : N_BLOCKS) {
         ascending <- isBlockAscending(block)
-        bet_position <- ifelse(ascending, 1:N_BET_OPTIONS, N_BET_OPTIONS:1)
+        bet_position <- if (ascending) 1:N_BET_OPTIONS else N_BET_OPTIONS:1
+        # ... do not use ifelse()!
         trial_within_block <- 1
 
         while (trial_within_block <= MAX_TRIALS_PER_BLOCK) {
@@ -289,11 +305,8 @@ makeSingleRun <- function(alpha, red_bias, gamma, rho, beta)
 
             # What was the proportion of locations for the *chosen* side?
             # This is the probability of winning.
-            proportion_of_boxes_for_chosen_colour <- ifelse(
-                chose_red[trial],
-                proportion_red,
-                1 - proportion_red
-            )
+            proportion_of_boxes_for_chosen_colour <-
+                if (chose_red[trial]) proportion_red else 1 - proportion_red
 
             # What are the expected utilities of each possible bet?
             penalized_expected_utility <- getPenalizedExpectedUtility(
