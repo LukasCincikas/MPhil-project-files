@@ -324,7 +324,7 @@ saveFig <- function(fig, filename_stem,
     fullpath <- file.path(OUTPUT_DIR, filename_stem)
     cat(paste0("- Saving figure: ", fullpath, " ..."))
     ggsave(
-        filename = filename,
+        filename = fullpath,
         plot = fig,
         width = width_mm,
         height = height_mm,
@@ -335,45 +335,60 @@ saveFig <- function(fig, filename_stem,
 }
 
 
-analyseMockData <- function()
+analyseMockData <- function(bayesian = TRUE, figures = TRUE)
 {
     # Writes to global namespace with "<<-". In general, avoid this!
 
+    # One subject
     mock_data_1s <<- loadDataFromCsv(
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1subject.csv"))
     mock_standata_1s <<- makeStanDataFromDataTable(mock_data_1s)
-    mock_results_1s <<- analyseIndependentSubjects(
-        standata = mock_standata_1s, model_name = "cgt_mock_1_subject")
+    if (bayesian) {
+        mock_results_1s <<- analyseIndependentSubjects(
+            standata = mock_standata_1s, model_name = "cgt_mock_1_subject")
+    }
 
+    # Two subjects
     mock_data_2s <<- loadDataFromCsv(
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2subjects.csv"))
     mock_standata_2s <<- makeStanDataFromDataTable(mock_data_2s)
-    mock_results_2s <<- analyseIndependentSubjects(
-        standata = mock_standata_2s, model_name = "cgt_mock_2_subjects")
+    if (bayesian) {
+        mock_results_2s <<- analyseIndependentSubjects(
+            standata = mock_standata_2s, model_name = "cgt_mock_2_subjects")
+    }
 
+    # One group
     mock_data_1g <<- loadDataFromCsv(
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1group.csv"))
     mock_standata_1g <<- makeStanDataFromDataTable(mock_data_1g)
-    mock_results_1g <<- analyseGroups(
-        standata = mock_standata_1g, model_name = "cgt_mock_1_group")
-    mock_fig_1g <<- mkRomeuFig2(mock_data_1g)
-    saveFig(mock_fig_1g, "mock_fig_1g.png")
+    if (bayesian) {
+        mock_results_1g <<- analyseGroups(
+            standata = mock_standata_1g, model_name = "cgt_mock_1_group")
+    }
+    if (figures) {
+        mock_fig_1g <<- mkRomeuFig2(mock_data_1g)
+        saveFig(mock_fig_1g, "mock_fig_1g.png")
+    }
 
+    # Two groups
     mock_data_2g <<- loadDataFromCsv(
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2groups.csv"))
     mock_standata_2g <<- makeStanDataFromDataTable(mock_data_2g)
-    mock_results_2g <<- analyseGroups(
-        standata = mock_standata_2g, model_name = "cgt_mock_2_groups")
-    mock_fig_2g <<- mkRomeuFig2(mock_data_2g)
-    saveFig(mock_fig_2g, "mock_fig_2g.png")
-
-    # Specimen group comparison
-    cat("- Summary of mock_results_2g:\n")
-    print(stanfunc$annotated_parameters(
-        fit = mock_results_2g$fit,
-        probs = c(0.025, 0.975),
-        par_regex = "^group.*\\[1,2\\]$"
-    ))
+    if (bayesian) {
+        mock_results_2g <<- analyseGroups(
+            standata = mock_standata_2g, model_name = "cgt_mock_2_groups")
+        # Specimen group comparison
+        cat("- Summary of mock_results_2g:\n")
+        print(stanfunc$annotated_parameters(
+            fit = mock_results_2g$fit,
+            probs = c(0.025, 0.975),
+            par_regex = "^group.*\\[1,2\\]$"
+        ))
+    }
+    if (figures) {
+        mock_fig_2g <<- mkRomeuFig2(mock_data_2g)
+        saveFig(mock_fig_2g, "mock_fig_2g.png")
+    }
 }
 
 
