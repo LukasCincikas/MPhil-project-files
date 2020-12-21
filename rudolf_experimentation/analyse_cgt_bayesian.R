@@ -325,6 +325,7 @@ analyseGroups <- function(standata, model_name, ...)
 saveFig <- function(fig, filename_stem,
                     width_mm = 200, height_mm = 200, dpi = 600)
 {
+    # Save a ggplot figure.
     fullpath <- file.path(OUTPUT_DIR, filename_stem)
     cat(paste0("- Saving figure: ", fullpath, " ..."))
     ggsave(
@@ -341,6 +342,7 @@ saveFig <- function(fig, filename_stem,
 
 saveOutput <- function(..., append = TRUE)
 {
+    # Write a quantity to our text output file.
     debugfunc$debug_quantity(..., filename = OUTPUT_FILE, append = append,
                              print_only = TRUE)
 }
@@ -350,7 +352,9 @@ analyseMockData <- function(bayesian = TRUE, figures = TRUE)
 {
     # Writes to global namespace with "<<-". In general, avoid this!
 
+    # -------------------------------------------------------------------------
     # One subject
+    # -------------------------------------------------------------------------
     mock_data_1s <<- loadDataFromCsv(
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1subject.csv"))
     mock_standata_1s <<- makeStanDataFromDataTable(mock_data_1s)
@@ -360,7 +364,9 @@ analyseMockData <- function(bayesian = TRUE, figures = TRUE)
         saveOutput(mock_results_1s$fit, append = FALSE)
     }
 
+    # -------------------------------------------------------------------------
     # Two subjects
+    # -------------------------------------------------------------------------
     mock_data_2s <<- loadDataFromCsv(
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2subjects.csv"))
     mock_standata_2s <<- makeStanDataFromDataTable(mock_data_2s)
@@ -370,7 +376,9 @@ analyseMockData <- function(bayesian = TRUE, figures = TRUE)
         saveOutput(mock_results_2s$fit)
     }
 
+    # -------------------------------------------------------------------------
     # One group
+    # -------------------------------------------------------------------------
     mock_data_1g <<- loadDataFromCsv(
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1group.csv"))
     mock_standata_1g <<- makeStanDataFromDataTable(mock_data_1g)
@@ -384,7 +392,9 @@ analyseMockData <- function(bayesian = TRUE, figures = TRUE)
         saveFig(mock_fig_1g, "mock_fig_1g.png")
     }
 
+    # -------------------------------------------------------------------------
     # Two groups
+    # -------------------------------------------------------------------------
     mock_data_2g <<- loadDataFromCsv(
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2groups.csv"))
     mock_standata_2g <<- makeStanDataFromDataTable(mock_data_2g)
