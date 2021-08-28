@@ -13,4 +13,5 @@
     // Modelling constants
     // ========================================================================
     real ALPHA_UPPER_LIMIT = 5;  // range [0,5]: [Romeu2020]
+    real ALPHA_UPPER_LIMIT_ALT = 10; // Modified range for updated models
     real PRIOR_SD_FOR_GROUP_STANDARD_NORMAL = 0.2;  // [Romeu2020], suppl. p.14

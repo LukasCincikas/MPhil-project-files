@@ -1,4 +1,5 @@
-// cgt_romeu2020_model12_single_subject.stan
+// cgt_romeu2020_model12_independent_subjects.stan
+// Simplified model 12 code that does not account for group structure in the data
 
 functions {
     // #include syntax is finicky:

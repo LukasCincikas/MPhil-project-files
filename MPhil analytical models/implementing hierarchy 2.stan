@@ -45,8 +45,8 @@ model {
   real gamma;
   alpha_group_t ~ normal(0,1);
   gamma_group_t ~ normal(0,1);
-  alpha_SD ~ normal(0,0.4);
-  gamma_SD ~ normal(0,0.4);
+  alpha_SD ~ normal(0,1);
+  gamma_SD ~ normal(0,1);
   alpha_subject_t ~ normal(0,alpha_SD);
   gamma_subject_t ~ normal(0,gamma_SD);
   

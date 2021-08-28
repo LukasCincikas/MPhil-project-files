@@ -64,4 +64,6 @@ fit <- stan(file = stan_model1,
             iter = 6000,
             chains = 4,
             cores = 4,
-            thin = 1)
+            thin = 1,
+            seed = 1111)
+            #control=list(adapt_delta=0.95))

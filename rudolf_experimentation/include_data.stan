@@ -1,10 +1,12 @@
     // ========================================================================
-    // Core data for all models
+    //  OLD Core data for all models
     // ========================================================================
 
     int N_GROUPS;  // ignored for independent-subjects model
     int N_SUBJECTS;  // subject_num goes from 1:N_SUBJECTS
     int N_TRIALS;  // TOTAL number of trials
+    int N_CONDITIONS;
+    int N_SEGMENTS;
 
     int<lower=1, upper=N_GROUPS> group_num_by_subject[N_SUBJECTS];
     // ... ignored for independent-subjects model
@@ -17,6 +19,8 @@
     // The solution is to use "as.array()" in R.
 
     int<lower=1, upper=N_SUBJECTS> subject_num_by_trial[N_TRIALS];
+    int<lower=1, upper=N_CONDITIONS> condition_num_by_subject[N_SUBJECTS];
+    int<lower=1, upper=N_SEGMENTS> segment_num_by_subject[N_SUBJECTS];
 
     int<lower=0, upper=1> ascending_bets[N_TRIALS];
     int<lower=0> starting_points[N_TRIALS];

@@ -1,4 +1,6 @@
-// cgt_romeu2020_model12_single_subject.stan
+// cgt_romeu2020_model12_groups.stan
+// Reproduced model 12 from Romeu et al 2020
+// For a 2 conditions x 2 groups data structure
 
 functions {
     // #include syntax is finicky:
@@ -34,11 +36,11 @@ parameters {
     // ------------------------------------------------------------------------
 
     // Group means, in N(0,1) space:
-    vector[N_GROUPS] nspace1_group_mean_alpha;
-    vector[N_GROUPS] nspace1_group_mean_red_bias;
-    vector[N_GROUPS] nspace1_group_mean_gamma;
-    vector[N_GROUPS] nspace1_group_mean_rho;
-    vector[N_GROUPS] nspace1_group_mean_beta;
+    vector[N_GROUPS*N_CONDITIONS] nspace1_group_mean_alpha;
+    vector[N_GROUPS*N_CONDITIONS] nspace1_group_mean_red_bias;
+    vector[N_GROUPS*N_CONDITIONS] nspace1_group_mean_gamma;
+    vector[N_GROUPS*N_CONDITIONS] nspace1_group_mean_rho;
+    vector[N_GROUPS*N_CONDITIONS] nspace1_group_mean_beta;
 
     // ------------------------------------------------------------------------
     // Random effects
@@ -53,11 +55,12 @@ parameters {
     vector<lower=0>[N_GROUPS] nspace1_group_sd_beta;
 
     // Subject effects (deviations from their group mean), in N(0,1) space:
-    vector[N_SUBJECTS] nspace2_subject_effect_alpha;
-    vector[N_SUBJECTS] nspace2_subject_effect_red_bias;
-    vector[N_SUBJECTS] nspace2_subject_effect_gamma;
-    vector[N_SUBJECTS] nspace2_subject_effect_rho;
-    vector[N_SUBJECTS] nspace2_subject_effect_beta;
+    vector[N_SEGMENTS] nspace2_subject_effect_alpha;
+    vector[N_SEGMENTS] nspace2_subject_effect_red_bias;
+    vector[N_SEGMENTS] nspace2_subject_effect_gamma;
+    vector[N_SEGMENTS] nspace2_subject_effect_rho;
+    vector[N_SEGMENTS] nspace2_subject_effect_beta;
+    
 }
 
 transformed parameters {
@@ -84,6 +87,9 @@ transformed parameters {
 
     for (s in 1:N_SUBJECTS) {
         int g = group_num_by_subject[s];
+        int c = condition_num_by_subject[s];
+        int sgm = segment_num_by_subject[s];
+        int p; //Marker for the number of the groupXcondition vector
         real nspace1_subject_effect_alpha;  // deviation from group mean
         real nspace1_subject_alpha;  // final per-subject value, in unit normal space
         real nspace1_subject_effect_red_bias;
@@ -104,37 +110,52 @@ transformed parameters {
         //     subject value = group mean + subject-specific effect [from 1]
         // (3) Convert from "Stan parameter space" to "task parameter space".
         // We use temporary variables so this is clearer.
+        
+        //Because the groupXcondition ends up being a vector, I need to determine the group number here
+        if (g == 1) {
+            if(c == 1) {
+                p = 1; 
+            } else {
+                p = 2;
+            }
+        } else {
+            if (c == 1) {
+                p = 3;
+            } else {
+                p = 4;
+            }
+        }
 
         // Bounded parameters: inverse probit-transformed to (0, 1) then scaled:
-        nspace1_subject_effect_alpha = 
-            nspace2_subject_effect_alpha[s] * nspace1_group_sd_alpha[g];
+        nspace1_subject_effect_alpha =
+            nspace2_subject_effect_alpha[sgm] * nspace1_group_sd_alpha[g];
         nspace1_subject_alpha =
-            nspace1_group_mean_alpha[g] + nspace1_subject_effect_alpha;
+            nspace1_group_mean_alpha[p] + nspace1_subject_effect_alpha;
         subject_alpha[s] = Phi(nspace1_subject_alpha) * ALPHA_UPPER_LIMIT;
 
-        nspace1_subject_effect_red_bias = 
-            nspace2_subject_effect_red_bias[s] * nspace1_group_sd_red_bias[g];
+        nspace1_subject_effect_red_bias =
+            nspace2_subject_effect_red_bias[sgm] * nspace1_group_sd_red_bias[g];
         nspace1_subject_red_bias =
-            nspace1_group_mean_red_bias[g] + nspace1_subject_effect_red_bias;
+            nspace1_group_mean_red_bias[p] + nspace1_subject_effect_red_bias;
         subject_red_bias[s] = Phi(nspace1_subject_red_bias);
 
-        nspace1_subject_effect_gamma = 
-            nspace2_subject_effect_gamma[s] * nspace1_group_sd_gamma[g];
+        nspace1_subject_effect_gamma =
+            nspace2_subject_effect_gamma[sgm] * nspace1_group_sd_gamma[g];
         nspace1_subject_gamma =
-            nspace1_group_mean_gamma[g] + nspace1_subject_effect_gamma;
+            nspace1_group_mean_gamma[p] + nspace1_subject_effect_gamma;
         subject_gamma[s] = exp(nspace1_subject_gamma);
 
         // Unbounded parameters: exponentially transformed to (0, +inf):
-        nspace1_subject_effect_rho = 
-            nspace2_subject_effect_rho[s] * nspace1_group_sd_rho[g];
+        nspace1_subject_effect_rho =
+            nspace2_subject_effect_rho[sgm] * nspace1_group_sd_rho[g];
         nspace1_subject_rho =
-            nspace1_group_mean_rho[g] + nspace1_subject_effect_rho;
+            nspace1_group_mean_rho[p] + nspace1_subject_effect_rho;
         subject_rho[s] = exp(nspace1_subject_rho);
 
-        nspace1_subject_effect_beta = 
-            nspace2_subject_effect_beta[s] * nspace1_group_sd_beta[g];
+        nspace1_subject_effect_beta =
+            nspace2_subject_effect_beta[sgm] * nspace1_group_sd_beta[g];
         nspace1_subject_beta =
-            nspace1_group_mean_beta[g] + nspace1_subject_effect_beta;
+            nspace1_group_mean_beta[p] + nspace1_subject_effect_beta;
         subject_beta[s] = exp(nspace1_subject_beta);
 
         // We could have used the "target +=" notation (as for bridge sampling)
@@ -200,22 +221,22 @@ generated quantities {
     // Group means in "task parameter space":
     // ------------------------------------------------------------------------
 
-    vector<lower=0, upper=ALPHA_UPPER_LIMIT>[N_GROUPS] group_mean_alpha;
-    vector<lower=0, upper=1>[N_GROUPS] group_mean_red_bias;
-    vector<lower=0>[N_GROUPS] group_mean_gamma;
-    vector<lower=0>[N_GROUPS] group_mean_rho;
-    vector<lower=0>[N_GROUPS] group_mean_beta;
+    vector<lower=0, upper=ALPHA_UPPER_LIMIT>[N_GROUPS*N_CONDITIONS] group_mean_alpha;
+    vector<lower=0, upper=1>[N_GROUPS*N_CONDITIONS] group_mean_red_bias;
+    vector<lower=0>[N_GROUPS*N_CONDITIONS] group_mean_gamma;
+    vector<lower=0>[N_GROUPS*N_CONDITIONS] group_mean_rho;
+    vector<lower=0>[N_GROUPS*N_CONDITIONS] group_mean_beta;
 
     // ------------------------------------------------------------------------
     // Group differences in means, pairwise, in "task parameter space":
     // ------------------------------------------------------------------------
     // All are indexed such that diff[g1, g2] == value[g1] - value[g2].
 
-    matrix[N_GROUPS, N_GROUPS] group_mean_diff_alpha;
-    matrix[N_GROUPS, N_GROUPS] group_mean_diff_red_bias;
-    matrix[N_GROUPS, N_GROUPS] group_mean_diff_gamma;
-    matrix[N_GROUPS, N_GROUPS] group_mean_diff_rho;
-    matrix[N_GROUPS, N_GROUPS] group_mean_diff_beta;
+    matrix[N_GROUPS*N_CONDITIONS, N_GROUPS*N_CONDITIONS] group_mean_diff_alpha;
+    matrix[N_GROUPS*N_CONDITIONS, N_GROUPS*N_CONDITIONS] group_mean_diff_red_bias;
+    matrix[N_GROUPS*N_CONDITIONS, N_GROUPS*N_CONDITIONS] group_mean_diff_gamma;
+    matrix[N_GROUPS*N_CONDITIONS, N_GROUPS*N_CONDITIONS] group_mean_diff_rho;
+    matrix[N_GROUPS*N_CONDITIONS, N_GROUPS*N_CONDITIONS] group_mean_diff_beta;
 
     // ------------------------------------------------------------------------
     // Group differences in intersubject SD, pairwise, in N(0, 0.2) space
@@ -227,11 +248,31 @@ generated quantities {
     matrix[N_GROUPS, N_GROUPS] group_sd_diff_nspace1_gamma;
     matrix[N_GROUPS, N_GROUPS] group_sd_diff_nspace1_rho;
     matrix[N_GROUPS, N_GROUPS] group_sd_diff_nspace1_beta;
+    
+    // ------------------------------------------------------------------------
+    // Main effect of GROUP
+    // ------------------------------------------------------------------------
+
+    real overall_group_effect_alpha;
+    real overall_group_effect_red_bias;
+    real overall_group_effect_gamma;
+    real overall_group_effect_rho;
+    real overall_group_effect_beta;
+    
+    // ------------------------------------------------------------------------
+    // Main effect of CONDITION
+    // ------------------------------------------------------------------------
+
+    real overall_condition_effect_alpha;
+    real overall_condition_effect_red_bias;
+    real overall_condition_effect_gamma;
+    real overall_condition_effect_rho;
+    real overall_condition_effect_beta;
 
     // ========================================================================
     // Calculate
     // ========================================================================
-
+    
     // Group means, vectorized
     group_mean_alpha = Phi(nspace1_group_mean_alpha) * ALPHA_UPPER_LIMIT;
     group_mean_red_bias = Phi(nspace1_group_mean_red_bias);
@@ -251,9 +292,9 @@ generated quantities {
         // ... but fixed so that the lower/upper bounds are sensible.
         real tiny_random_number = uniform_rng(-1e-16, 1e-16);
 
-        // Group differences
-        for (g1 in 1:N_GROUPS) {
-            for (g2 in 1:N_GROUPS) {
+        // Group differences of each groupXcondition set
+        for (g1 in 1:(N_GROUPS*N_CONDITIONS)) {
+            for (g2 in 1:(N_GROUPS*N_CONDITIONS)) {
     
                 if (g1 == g2) {
                     // See explanation in tiny_random_number.
@@ -262,12 +303,6 @@ generated quantities {
                     group_mean_diff_gamma[g1, g2]    = tiny_random_number;
                     group_mean_diff_rho[g1, g2]      = tiny_random_number;
                     group_mean_diff_beta[g1, g2]     = tiny_random_number;
-    
-                    group_sd_diff_nspace1_alpha[g1, g2]    = tiny_random_number;
-                    group_sd_diff_nspace1_red_bias[g1, g2] = tiny_random_number;
-                    group_sd_diff_nspace1_gamma[g1, g2]    = tiny_random_number;
-                    group_sd_diff_nspace1_rho[g1, g2]      = tiny_random_number;
-                    group_sd_diff_nspace1_beta[g1, g2]     = tiny_random_number;
     
                 } else {
                     // We'll do this in a pretty unthinking way; more efficiency
@@ -281,6 +316,28 @@ generated quantities {
                     group_mean_diff_gamma[g1, g2]    = group_mean_gamma[g1]    - group_mean_gamma[g2];
                     group_mean_diff_rho[g1, g2]      = group_mean_rho[g1]      - group_mean_rho[g2];
                     group_mean_diff_beta[g1, g2]     = group_mean_beta[g1]     - group_mean_beta[g2];
+                }
+            }
+        }
+        
+        for (g1 in 1:(N_GROUPS)) {
+            for (g2 in 1:(N_GROUPS)) {
+    
+                if (g1 == g2) {
+                    // See explanation in tiny_random_number.
+                    group_sd_diff_nspace1_alpha[g1, g2]    = tiny_random_number;
+                    group_sd_diff_nspace1_red_bias[g1, g2] = tiny_random_number;
+                    group_sd_diff_nspace1_gamma[g1, g2]    = tiny_random_number;
+                    group_sd_diff_nspace1_rho[g1, g2]      = tiny_random_number;
+                    group_sd_diff_nspace1_beta[g1, g2]     = tiny_random_number;
+    
+                } else {
+                    // We'll do this in a pretty unthinking way; more efficiency
+                    // would be possible. Specifically, every value is calculated
+                    // twice (e.g. g1 == 3, g2 == 4; then g1 == 4, g2 == 3). But
+                    // it makes for shorter and more maintainable code. Also, line
+                    // length style is ignored to improve our ability to spot
+                    // typos.
     
                     group_sd_diff_nspace1_alpha[g1, g2]    = nspace1_group_sd_alpha[g1]    - nspace1_group_sd_alpha[g2];
                     group_sd_diff_nspace1_red_bias[g1, g2] = nspace1_group_sd_red_bias[g1] - nspace1_group_sd_red_bias[g2];
@@ -290,5 +347,19 @@ generated quantities {
                 }
             }
         }
+        
+        //Overall GROUP effects
+        overall_group_effect_alpha = (group_mean_alpha[1] + group_mean_alpha[2]) / 2 - (group_mean_alpha[3] + group_mean_alpha[4]) / 2;
+        overall_group_effect_red_bias = (group_mean_red_bias[1] + group_mean_red_bias[2]) / 2 - (group_mean_red_bias[3] + group_mean_red_bias[4]) / 2;
+        overall_group_effect_gamma = (group_mean_gamma[1] + group_mean_gamma[2]) / 2 - (group_mean_gamma[3] + group_mean_gamma[4]) / 2;
+        overall_group_effect_rho = (group_mean_rho[1] + group_mean_rho[2]) / 2 - (group_mean_rho[3] + group_mean_rho[4]) / 2;
+        overall_group_effect_beta = (group_mean_beta[1] + group_mean_beta[2]) / 2 - (group_mean_beta[3] + group_mean_beta[4]) / 2;
+        
+        //Overal CONDITION effects
+        overall_condition_effect_alpha = (group_mean_alpha[1] + group_mean_alpha[3]) / 2 - (group_mean_alpha[2] + group_mean_alpha[4]) / 2;
+        overall_condition_effect_red_bias = (group_mean_red_bias[1] + group_mean_red_bias[3]) / 2 - (group_mean_red_bias[2] + group_mean_red_bias[4]) / 2;
+        overall_condition_effect_gamma = (group_mean_gamma[1] + group_mean_gamma[3]) / 2 - (group_mean_gamma[2] + group_mean_gamma[4]) / 2;
+        overall_condition_effect_rho = (group_mean_rho[1] + group_mean_rho[3]) / 2 - (group_mean_rho[2] + group_mean_rho[4]) / 2;
+        overall_condition_effect_beta = (group_mean_beta[1] + group_mean_beta[3]) / 2 - (group_mean_beta[2] + group_mean_beta[4]) / 2;
     }
 }

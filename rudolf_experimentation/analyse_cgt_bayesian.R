@@ -4,6 +4,8 @@
 # Uses the [Romeu2020] model.
 #
 # - Rudolf Cardinal, 18 Dec 2020.
+# - updated and edited by Lukas Cincikas, 12/2020-02/2021
+# - was used for older, now outdated model structures. See analyse_cgt_bayesian_loss.R instead
 # - Naming conventions: CONSTANT, some_variable, someFunction.
 # - References:
 #   [Romeu2020] Romeu et al (2020, PMID 31735532).
@@ -27,7 +29,9 @@ source("https://egret.psychol.cam.ac.uk/rlib/stanfunc.R")
 # R settings
 # =============================================================================
 
-options(warn = 2)  # Warnings become errors.
+options(timeout= 4000000)
+options(max.print=100000)
+options(warn = 2)  # Warnings become errors with 2; warnings remain warnings with 1.
 
 # As advised by Stan:
 rstan::rstan_options(auto_write = TRUE)
@@ -54,7 +58,7 @@ OUTPUT_FILE <- file.path(OUTPUT_DIR, "output.txt")
 STAN_INDEPENDENT_SUBJECTS_CODE <- readr::read_file(file.path(
     THIS_DIR, "cgt_romeu2020_model12_independent_subjects.stan"))
 STAN_GROUPS_CODE <- readr::read_file(file.path(
-    THIS_DIR, "cgt_romeu2020_model12_groups.stan"))
+    THIS_DIR, "cgt_romeu2020_model12_risk_adjustment_1A.stan"))
 
 
 # =============================================================================
@@ -158,13 +162,21 @@ makeStanDataFromDataTable <- function(d, print_data = FALSE)
     subject_names <- unique(d$subject_name)
     n_subjects <- length(subject_names)
 
+    condition_names <- unique(d$condition_name)
+    n_conditions <- length(condition_names)
+    
+    segment_names <- unique(d$segment_number)
+    n_segments <- length(segment_names)
+    
     subject_names_groups <- d[
         ,
         .(n_trials = .N),  # do something irrelevant; here, counting rows
-        by = .(subject_name, group_name)
+        by = .(subject_name, group_name, condition_name, segment_number)
     ]
     subject_names_groups[, subject_num := match(subject_name, subject_names)]
     subject_names_groups[, group_num := match(group_name, group_names)]
+    subject_names_groups[, condition_num := match(condition_name, condition_names)]
+    subject_names_groups[, segment_num := match(segment_number, segment_names)]
     if (nrow(subject_names_groups) != n_subjects) {
         stop("Error: at least one subject appears in >1 group!")
     }
@@ -178,14 +190,21 @@ makeStanDataFromDataTable <- function(d, print_data = FALSE)
 
     standata <- list(
         all_subject_names = subject_names,  # not used by Stan; for safety
-        all_group_names = group_names,  # not used by Stan; for safety
+        all_group_names = group_names,   # not used by Stan; for safety
+        all_condition_names = condition_names,
+        all_segment_names = segment_names,
 
         N_GROUPS = n_groups,
         N_SUBJECTS = n_subjects,
         N_TRIALS = n_trials,
+        N_CONDITIONS = n_conditions,
+        N_SEGMENTS = n_segments,
 
         # For the multi-subject version:
         group_num_by_subject = as.array(subject_names_groups$group_num),
+        # For the within-subject design version:
+        condition_num_by_subject = as.array(subject_names_groups$condition_num),
+        segment_num_by_subject = as.array(subject_names_groups$segment_num),
         # ... In Stan, we declare group_num_by_subject as an array.
         #     Therefore, if it has only one value, we have to convert.
         subject_num_by_trial = match(d$subject_name, subject_names),
@@ -223,10 +242,10 @@ analyseViaStan <- function(
     stan_code,
     with_bridge_sampling = FALSE,
     with_diagnostics = FALSE,
-    chains = 8,
+    chains = 4,
     iter = 2000,
     init = "0",
-    seed = 1234,
+    seed = 1111,
     adapt_delta = 0.9,  # Stan default is 0.8
     stepsize = 1,
     max_treedepth = 10)
@@ -276,8 +295,9 @@ analyseViaStan <- function(
         bridge_sample <- stanfunc$load_or_run_bridge_sampler(
             stanfit = fit,
             filename = bridge_filename,
-            model_code = code,
-            data = standata
+            model_code = stan_code,
+            data = standata,
+            cores = 1
         )
     } else {
         bridge_sample <- NULL
@@ -325,7 +345,6 @@ analyseGroups <- function(standata, model_name, ...)
 saveFig <- function(fig, filename_stem,
                     width_mm = 200, height_mm = 200, dpi = 600)
 {
-    # Save a ggplot figure.
     fullpath <- file.path(OUTPUT_DIR, filename_stem)
     cat(paste0("- Saving figure: ", fullpath, " ..."))
     ggsave(
@@ -342,7 +361,6 @@ saveFig <- function(fig, filename_stem,
 
 saveOutput <- function(..., append = TRUE)
 {
-    # Write a quantity to our text output file.
     debugfunc$debug_quantity(..., filename = OUTPUT_FILE, append = append,
                              print_only = TRUE)
 }
@@ -352,9 +370,18 @@ analyseMockData <- function(bayesian = TRUE, figures = TRUE)
 {
     # Writes to global namespace with "<<-". In general, avoid this!
 
-    # -------------------------------------------------------------------------
     # One subject
+<<<<<<< HEAD
     # -------------------------------------------------------------------------
+#    mock_data_1s <<- loadDataFromCsv(
+#        file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1subject.csv"))
+#    mock_standata_1s <<- makeStanDataFromDataTable(mock_data_1s)
+#    if (bayesian) {
+#        mock_results_1s <<- analyseIndependentSubjects(
+#            standata = mock_standata_1s, model_name = "cgt_mock_1_subject")
+#        saveOutput(mock_results_1s$fit, append = FALSE)
+#    }
+=======
     mock_data_1s <<- loadDataFromCsv(
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1subject.csv"))
     mock_standata_1s <<- makeStanDataFromDataTable(mock_data_1s)
@@ -363,10 +390,20 @@ analyseMockData <- function(bayesian = TRUE, figures = TRUE)
             standata = mock_standata_1s, model_name = "cgt_mock_1_subject")
         saveOutput(mock_results_1s$fit, append = FALSE)
     }
+>>>>>>> parent of 8f68742 (Cosmetic comments)
 
-    # -------------------------------------------------------------------------
     # Two subjects
+<<<<<<< HEAD
     # -------------------------------------------------------------------------
+#    mock_data_2s <<- loadDataFromCsv(
+#        file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2subjects.csv"))
+#    mock_standata_2s <<- makeStanDataFromDataTable(mock_data_2s)
+#    if (bayesian) {
+#        mock_results_2s <<- analyseIndependentSubjects(
+#            standata = mock_standata_2s, model_name = "cgt_mock_2_subjects")
+#        saveOutput(mock_results_2s$fit)
+#    }
+=======
     mock_data_2s <<- loadDataFromCsv(
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2subjects.csv"))
     mock_standata_2s <<- makeStanDataFromDataTable(mock_data_2s)
@@ -375,10 +412,24 @@ analyseMockData <- function(bayesian = TRUE, figures = TRUE)
             standata = mock_standata_2s, model_name = "cgt_mock_2_subjects")
         saveOutput(mock_results_2s$fit)
     }
+>>>>>>> parent of 8f68742 (Cosmetic comments)
 
-    # -------------------------------------------------------------------------
     # One group
+<<<<<<< HEAD
     # -------------------------------------------------------------------------
+#    mock_data_1g <<- loadDataFromCsv(
+#        file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1group.csv"))
+#    mock_standata_1g <<- makeStanDataFromDataTable(mock_data_1g)
+#    if (bayesian) {
+#        mock_results_1g <<- analyseGroups(
+#            standata = mock_standata_1g, model_name = "cgt_mock_1_group")
+#        saveOutput(mock_results_1g$fit)
+#    }
+#    if (figures) {
+#        mock_fig_1g <<- mkRomeuFig2(mock_data_1g)
+#        saveFig(mock_fig_1g, "mock_fig_1g.png")
+#    }
+=======
     mock_data_1g <<- loadDataFromCsv(
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1group.csv"))
     mock_standata_1g <<- makeStanDataFromDataTable(mock_data_1g)
@@ -391,34 +442,69 @@ analyseMockData <- function(bayesian = TRUE, figures = TRUE)
         mock_fig_1g <<- mkRomeuFig2(mock_data_1g)
         saveFig(mock_fig_1g, "mock_fig_1g.png")
     }
+>>>>>>> parent of 8f68742 (Cosmetic comments)
+
+    # Two groups
+<<<<<<< HEAD
+    # -------------------------------------------------------------------------
+#    mock_data_2g <<- loadDataFromCsv(
+#        file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2groups.csv"))
+#    mock_standata_2g <<- makeStanDataFromDataTable(mock_data_2g)
+#    if (bayesian) {
+#        mock_results_2g <<- analyseGroups(
+#            standata = mock_standata_2g, model_name = "cgt_mock_2_groups")
+#        saveOutput(mock_results_2g$fit)
+#        # Specimen group comparison
+#        summary_of_mock_results_2g <<- stanfunc$annotated_parameters(
+#            fit = mock_results_2g$fit,
+#            probs = c(0.025, 0.975),
+#            par_regex = "^group.*\\[(?:1|1,2|2)\\]$"
+#        )
+#        saveOutput(summary_of_mock_results_2g)
+#    }
+#    if (figures) {
+#        mock_fig_2g <<- mkRomeuFig2(mock_data_2g)
+#        saveFig(mock_fig_2g, "mock_fig_2g.png")
+#    }
+}
+
 
     # -------------------------------------------------------------------------
-    # Two groups
+    # 2X2 between and within subject design
     # -------------------------------------------------------------------------
+analyseMockDataAdvanced <- function(bayesian = TRUE, figures = TRUE)
+{
+    mock_data_2x2g <<- loadDataFromCsv(
+        file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2x2groups_M12_risk_adjustment_1A.csv"))
+    mock_standata_2x2g <<- makeStanDataFromDataTable(mock_data_2x2g)
+=======
     mock_data_2g <<- loadDataFromCsv(
         file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2groups.csv"))
     mock_standata_2g <<- makeStanDataFromDataTable(mock_data_2g)
+>>>>>>> parent of 8f68742 (Cosmetic comments)
     if (bayesian) {
-        mock_results_2g <<- analyseGroups(
-            standata = mock_standata_2g, model_name = "cgt_mock_2_groups")
-        saveOutput(mock_results_2g$fit)
+        mock_results_2x2g <<- analyseGroups(
+            standata = mock_standata_2x2g, model_name = "cgt_mock_2x2_groups_M12_risk_adjustment_1A")
+        saveOutput(mock_results_2x2g$fit)
         # Specimen group comparison
-        summary_of_mock_results_2g <<- stanfunc$annotated_parameters(
-            fit = mock_results_2g$fit,
+        summary_of_mock_results_2x2g <<- stanfunc$annotated_parameters(
+            fit = mock_results_2x2g$fit,
             probs = c(0.025, 0.975),
-            par_regex = "^group.*\\[(?:1|1,2|2)\\]$"
+            par_regex = "^(overall_)*(?:group|condition).*\\[*(?:1|1,2|2|3|4|1,3|1,4|2,3|2,4|3,4)*\\]*$"
         )
-        saveOutput(summary_of_mock_results_2g)
+        saveOutput(as.data.frame(summary_of_mock_results_2x2g))
     }
     if (figures) {
-        mock_fig_2g <<- mkRomeuFig2(mock_data_2g)
-        saveFig(mock_fig_2g, "mock_fig_2g.png")
+        mock_fig_2x2g <<- mkRomeuFig2(mock_data_2x2g)
+        saveFig(mock_fig_2x2g, "mock_fig_2x2g.png")
     }
 }
+
 
 
 # =============================================================================
 # Main entry point.
 # =============================================================================
 
-analyseMockData()
+#analyseMockData()
+analyseMockDataAdvanced()

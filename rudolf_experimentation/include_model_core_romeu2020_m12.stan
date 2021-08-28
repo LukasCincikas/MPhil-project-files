@@ -32,7 +32,7 @@
             ? proportion_red
             : 1 - proportion_red;
 
-        penalized_expected_utility = getPenalizedExpectedUtility(
+        penalized_expected_utility = getPenalizedExpectedUtility12(
             proportion_of_boxes_for_chosen_colour,
             starting_points[t],
             BET_FRACTION_OPTIONS,

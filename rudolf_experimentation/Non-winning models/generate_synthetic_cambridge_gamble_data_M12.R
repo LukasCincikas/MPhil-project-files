@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 
-# generate_synthetic_cambridge_gamble_data.R
+# generate_synthetic_cambridge_gamble_data_M12.R
 #
 # Simulate the Cambridge Gamble Task.
 # Uses the [Romeu2020] model.
@@ -137,7 +137,7 @@ getStake <- function(current_points, proportion_bet, round = TRUE)
 }
 
 
-utilityFunction <- function(x, rho)
+utilityFunctionOriginal <- function(x, rho)
 {
     # - rho: "risk aversion/seeking"; utility function power;
     #   [Romeu2020] eq. 6 but then extended; see table on p.17 of Supplementary
@@ -153,6 +153,19 @@ utilityFunction <- function(x, rho)
     ))
 }
 
+utilityFunction3 <- function(x, rho)
+{
+    # Utility function log(1+x)
+    stopifnot(rho >= 0)
+    return(log(1+x))
+}
+
+utilityFunction4 <- function(x, rho)
+{
+    # Utility function log(1+x*rho)
+    stopifnot(rho >= 0)
+    return(log(1 + rho * x))
+}
 
 getPenalizedExpectedUtility <- function(
     p_win,
@@ -186,8 +199,8 @@ getPenalizedExpectedUtility <- function(
     stake <- getStake(scaled_capital, proportion_bet, round = FALSE)
     x_capital_after_win <- scaled_capital + stake  # [Romeu 2020], eq. 5, X
     y_capital_after_loss <- scaled_capital - stake  # [Romeu 2020], eq. 5, Y
-    utility_after_win <- utilityFunction(x_capital_after_win, rho)
-    utility_after_loss <- utilityFunction(y_capital_after_loss, rho)
+    utility_after_win <- utilityFunction3(x_capital_after_win, rho)
+    utility_after_loss <- utilityFunction4(y_capital_after_loss, rho)
 
     p_loss <- 1 - p_win
     expected_utility <- p_win * utility_after_win + p_loss * utility_after_loss
@@ -400,6 +413,30 @@ makeMultipleSubjectsSameParameters <- function(
 }
 
 
+makeWithinSubjectOneInstance <- function(
+    group_name = "the_group",
+    subject_postfix = "number",
+    condition_name = "control",
+    segment_number = "placeholder",
+    ...)
+{
+    # - subject_prefix: prefix for each subject (prepended to a number from
+    #   1:n_subjects)
+    # - ...: parameters to makeSingleRun()
+    
+    cat(paste0("- Creating group: ", group_name, " ...\n"))
+    subject_name <- paste0("subject_", subject_postfix)
+    cat(paste0("- Simulating subject: ", subject_name, " ... "))
+    subject_data <- makeSingleRun(...)
+    cat("done.\n")
+    subject_data[, subject_name := subject_name]
+    subject_data[, group_name := group_name]
+    subject_data[, condition_name := condition_name]
+    subject_data[, segment_number := segment_number]
+    return(subject_data)
+}
+
+
 # =============================================================================
 # What data sets would we like to create today?
 # =============================================================================
@@ -419,6 +456,19 @@ makeSpecimens <- function(n_subjects_per_group = 50, seed = NULL)
     secondary_gamma <- 10
     secondary_rho <- 1.5
     secondary_beta <- 0.3
+    
+    #For within-subject design populations, these should be used:
+    drug_primary_alpha <- 1
+    drug_primary_red_bias <- 0.1
+    drug_primary_gamma <- -3
+    drug_primary_rho <- 0.4
+    drug_primary_beta <- -0.1
+    
+    drug_secondary_alpha <- 1
+    drug_secondary_red_bias <- 0.05
+    drug_secondary_gamma <- -4
+    drug_secondary_rho <- 0.4
+    drug_secondary_beta <- -0.15
 
     if (!is.null(seed)) {
         set.seed(seed)
@@ -432,7 +482,7 @@ makeSpecimens <- function(n_subjects_per_group = 50, seed = NULL)
             rho = DEFAULT_RHO,
             beta = DEFAULT_BETA
         ),
-        file = file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1subject.csv"),
+        file = file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1subject_M12.csv"),
         row.names = FALSE
     )
     write.csv(
@@ -456,7 +506,7 @@ makeSpecimens <- function(n_subjects_per_group = 50, seed = NULL)
                 beta = secondary_beta
             )
         ),
-        file = file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2subjects.csv"),
+        file = file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2subjects_M12.csv"),
         row.names = FALSE
     )
     write.csv(
@@ -468,7 +518,7 @@ makeSpecimens <- function(n_subjects_per_group = 50, seed = NULL)
             rho = DEFAULT_RHO,
             beta = DEFAULT_BETA
         ),
-        file = file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1group.csv"),
+        file = file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_1group_M12.csv"),
         row.names = FALSE
     )
     write.csv(
@@ -492,7 +542,100 @@ makeSpecimens <- function(n_subjects_per_group = 50, seed = NULL)
                 beta = secondary_beta
             )
         ),
-        file = file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2groups.csv"),
+        file = file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2groups_M12.csv"),
+        row.names = FALSE
+    )
+}
+
+
+makeSpecimensWithinSubjects <- function(n_subjects_per_group = 25, seed = NULL)
+{
+    # These are just picked at random:
+    secondary_alpha <- 2
+    secondary_red_bias <- 0.6
+    secondary_gamma <- 10
+    secondary_rho <- 1.5
+    secondary_beta <- 0.3
+    
+    #For within-subject design populations, these should be used:
+    drug_primary_alpha <- 1
+    drug_primary_red_bias <- 0.1
+    drug_primary_gamma <- -3
+    drug_primary_rho <- 0.4
+    drug_primary_beta <- -0.1
+    
+    drug_secondary_alpha <- 1
+    drug_secondary_red_bias <- 0.05
+    drug_secondary_gamma <- -4
+    drug_secondary_rho <- 0.4
+    drug_secondary_beta <- -0.15
+    
+    if (!is.null(seed)) {
+        set.seed(seed)
+    }
+    data_holder <- NULL
+        for(q in 1:n_subjects_per_group)
+        {
+            data_holder <- rbind(
+                data_holder,
+                makeWithinSubjectOneInstance(
+                    group_name = "group_1",
+                    subject_postfix = (2*q-1),
+                    condition_name = "condition_1",
+                    segment_number = q,
+                    alpha = DEFAULT_ALPHA,
+                    red_bias = DEFAULT_RED_BIAS,
+                    gamma = DEFAULT_GAMMA,
+                    rho = DEFAULT_RHO,
+                    beta = DEFAULT_BETA
+                ),
+                makeWithinSubjectOneInstance(
+                    group_name = "group_1",
+                    subject_postfix = (2*q),
+                    condition_name = "condition_2",
+                    segment_number = q,
+                    alpha = (DEFAULT_ALPHA + drug_primary_alpha),
+                    red_bias = (DEFAULT_RED_BIAS + drug_primary_red_bias),
+                    gamma = (DEFAULT_GAMMA + drug_primary_gamma),
+                    rho = (DEFAULT_RHO + drug_primary_rho),
+                    beta = (DEFAULT_BETA + drug_primary_beta)
+                )
+            )
+            
+        }
+        
+    for(q in 1:n_subjects_per_group)
+    {
+        data_holder <- rbind(
+            data_holder,
+            makeWithinSubjectOneInstance(
+                group_name = "group_2",
+                subject_postfix = (2*q-1+n_subjects_per_group*2),
+                condition_name = "condition_1",
+                segment_number = (q+n_subjects_per_group),
+                alpha = secondary_alpha,
+                red_bias = secondary_red_bias,
+                gamma = secondary_gamma,
+                rho = secondary_rho,
+                beta = secondary_beta
+            ),
+            makeWithinSubjectOneInstance(
+                group_name = "group_2",
+                subject_postfix = (2*q+n_subjects_per_group*2),
+                condition_name = "condition_2",
+                segment_number = (q+n_subjects_per_group),
+                alpha = (secondary_alpha + drug_secondary_alpha),
+                red_bias = (secondary_red_bias + drug_secondary_red_bias),
+                gamma = (secondary_gamma + drug_secondary_gamma),
+                rho = (secondary_rho + drug_secondary_rho),
+                beta = (secondary_beta + drug_secondary_beta)
+            )
+        )
+        
+    }
+    write.csv(
+        data_holder,
+        file = file.path(SYNTHETIC_DATA_DIR, "mock_data_rnc_2x2groups_M12.csv"),
         row.names = FALSE
     )
 }
@@ -502,4 +645,5 @@ makeSpecimens <- function(n_subjects_per_group = 50, seed = NULL)
 # Main entry point.
 # =============================================================================
 
-makeSpecimens(seed = 1234)
+#makeSpecimens(seed = 1234)
+makeSpecimensWithinSubjects(seed=1111)
